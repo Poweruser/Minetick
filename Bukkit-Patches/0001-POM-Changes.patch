@@ -1,0 +1,31 @@
+From ffedaf0b2b195efbc6eb04790b1449cd0926b902 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Fri, 20 Mar 2015 22:50:45 +0100
+Subject: [PATCH] POM Changes
+
+
+diff --git a/pom.xml b/pom.xml
+index 9dd0d06..2164134 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -9,13 +9,13 @@
+         <version>9</version>
+     </parent>
+ 
+-    <groupId>org.bukkit</groupId>
+-    <artifactId>bukkit</artifactId>
++    <groupId>de.minetick</groupId>
++    <artifactId>minetick-api</artifactId>
+     <version>1.8.3-R0.1-SNAPSHOT</version>
+     <packaging>jar</packaging>
+ 
+-    <name>Bukkit</name>
+-    <url>http://www.bukkit.org/</url>
++    <name>Minetick-API</name>
++    <url>http://www.minetick.de/</url>
+     <description>A plugin API for Minecraft servers.</description>
+ 
+     <properties>
+-- 
+1.8.3.msysgit.0
+
