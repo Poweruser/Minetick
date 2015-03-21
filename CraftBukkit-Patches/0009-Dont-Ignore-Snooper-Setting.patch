@@ -1,22 +1,14 @@
-From 1b3a6738e6741949a5aa6f958b004d8c6fba1651 Mon Sep 17 00:00:00 2001
+From 13d0e7c970bb9399162cb9fddbc5017510d017e8 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 21 Mar 2015 06:35:52 +0100
+Date: Sat, 21 Mar 2015 14:33:13 +0100
 Subject: [PATCH] Dont Ignore Snooper Setting
 
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index d57a796..3616662 100644
+index d57a796..6fd1238 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
-@@ -36,6 +36,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
-     private boolean generateStructures;
-     private WorldSettings.EnumGamemode r;
-     private boolean s;
-+    protected boolean snooperEnabled; // MinetickMod
- 
-     // CraftBukkit start - Signature changed
-     public DedicatedServer(joptsimple.OptionSet options) {
-@@ -226,7 +227,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+@@ -226,7 +226,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
                  this.aA();
                  this.getEnableCommandBlock();
                  this.p();
@@ -26,10 +18,21 @@ index d57a796..3616662 100644
                  this.c(this.propertyManager.getInt("max-build-height", 256));
                  this.c((this.getMaxBuildHeight() + 8) / 16 * 16);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index b18aef9..82af764 100644
+index b18aef9..5537dfa 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -649,11 +649,11 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -120,6 +120,10 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     public int autosavePeriod;
+     // CraftBukkit end
+
++    // MinetickMod start
++    protected boolean snooperEnabled;
++    // MinetickMod end
++
+     public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
+         this.e = proxy;
+         MinecraftServer.l = this;
+@@ -649,11 +653,11 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          this.h[this.ticks % 100] = System.nanoTime() - i;
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
