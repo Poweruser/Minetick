@@ -1,0 +1,24 @@
+From ea6627a6d4b5f9b4ccd48627c044ab766abc402e Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 10:45:17 +0100
+Subject: [PATCH] Tick Loaded Chunks Only
+
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 1d95a18..5b81ce5 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1992,7 +1992,9 @@ public abstract class World implements IBlockAccess {
+ 
+             for (int i1 = -l; i1 <= l; ++i1) {
+                 for (int j1 = -l; j1 <= l; ++j1) {
+-                    this.chunkTickList.add(org.bukkit.craftbukkit.util.LongHash.toLong(i1 + j, j1 + k));
++                    if(this.chunkProvider.isChunkLoaded(i1 + j, j1 + k)) { // MinetickMod
++                        this.chunkTickList.add(org.bukkit.craftbukkit.util.LongHash.toLong(i1 + j, j1 + k));
++                    }
+                 }
+             }
+         }
+-- 
+1.8.3.msysgit.0
+
