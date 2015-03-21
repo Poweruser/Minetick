@@ -1,15 +1,24 @@
-From ffedaf0b2b195efbc6eb04790b1449cd0926b902 Mon Sep 17 00:00:00 2001
+From ec7d02a42a8f7dcee76a898ceb26b1bd9bca279f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 20 Mar 2015 22:50:45 +0100
+Date: Sat, 21 Mar 2015 05:33:19 +0100
 Subject: [PATCH] POM Changes
 
 
 diff --git a/pom.xml b/pom.xml
-index 9dd0d06..2164134 100644
+index 9dd0d06..3b212d2 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -9,13 +9,13 @@
-         <version>9</version>
+@@ -4,18 +4,19 @@
+     <modelVersion>4.0.0</modelVersion>
+ 
+     <parent>
+-        <groupId>org.sonatype.oss</groupId>
+-        <artifactId>oss-parent</artifactId>
+-        <version>9</version>
++        <groupId>de.minetick</groupId>
++        <artifactId>minetick-parent</artifactId>
++        <version>dev-SNAPSHOT</version>
++        <relativePath>../pom.xml</relativePath>
      </parent>
  
 -    <groupId>org.bukkit</groupId>
