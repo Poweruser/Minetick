@@ -1,0 +1,44 @@
+From 42506cea99b4ef5a1ae36e0cf45509db5a06e350 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 06:44:36 +0100
+Subject: [PATCH] Throttle Successive Failed MobSpawner Attempts
+
+
+diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+index 8d668fa..5f6d9eb 100644
+--- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
++++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+@@ -21,6 +21,7 @@ public abstract class MobSpawnerAbstract {
+     private int maxNearbyEntities = 6;
+     private int requiredPlayerRange = 16;
+     private int spawnRange = 4;
++    private int spawningPenalty = 0; // MinetickMod
+ 
+     public MobSpawnerAbstract() {}
+ 
+@@ -115,6 +116,14 @@ public abstract class MobSpawnerAbstract {
+                 if (flag) {
+                     this.h();
+                 }
++                // MinetickMod start
++                else {
++                    this.spawnDelay += this.spawningPenalty;
++                    if(this.spawningPenalty < 40) {
++                        this.spawningPenalty++;
++                    }
++                }
++                // MinetickMod end
+             }
+ 
+         }
+@@ -188,6 +197,7 @@ public abstract class MobSpawnerAbstract {
+ 
+             this.spawnDelay = this.minSpawnDelay + this.a().random.nextInt(i);
+         }
++        this.spawningPenalty = 0; // MinetickMod
+ 
+         if (this.mobs.size() > 0) {
+             this.a((MobSpawnerAbstract.a) WeightedRandom.a(this.a().random, this.mobs));
+-- 
+1.8.3.msysgit.0
+
