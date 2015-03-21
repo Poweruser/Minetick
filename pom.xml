@@ -19,7 +19,7 @@
     <url>https://github.com/Poweruser/MinetickMod</url>
 
     <modules>
-        <module>Minetick-Server</module>
+        <module>MinetickMod</module>
         <module>Minetick-API</module>
     </modules>
 
