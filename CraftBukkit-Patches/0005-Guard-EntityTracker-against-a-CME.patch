@@ -1,0 +1,179 @@
+From 46b58622d9e5df0a66fe78c00ce5ff3e06312ce4 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 03:44:56 +0100
+Subject: [PATCH] Guard EntityTracker against a CME
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
+index 1cc9c95..feaeb8d 100644
+--- a/src/main/java/net/minecraft/server/EntityTracker.java
++++ b/src/main/java/net/minecraft/server/EntityTracker.java
+@@ -26,13 +26,15 @@ public class EntityTracker {
+         if (entity instanceof EntityPlayer) {
+             this.addEntity(entity, 512, 2);
+             EntityPlayer entityplayer = (EntityPlayer) entity;
+-            Iterator iterator = this.c.iterator();
++            synchronized(this.c) { // MinetickMod
++                Iterator iterator = this.c.iterator();
+ 
+-            while (iterator.hasNext()) {
+-                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++                while (iterator.hasNext()) {
++                    EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-                if (entitytrackerentry.tracker != entityplayer) {
+-                    entitytrackerentry.updatePlayer(entityplayer);
++                    if (entitytrackerentry.tracker != entityplayer) {
++                        entitytrackerentry.updatePlayer(entityplayer);
++                    }
+                 }
+             }
+         } else if (entity instanceof EntityFishingHook) {
+@@ -105,7 +107,9 @@ public class EntityTracker {
+ 
+             EntityTrackerEntry entitytrackerentry = new EntityTrackerEntry(entity, i, j, flag);
+ 
+-            this.c.add(entitytrackerentry);
++            synchronized(this.c) { // MinetickMod
++                this.c.add(entitytrackerentry);
++            }
+             this.trackedEntities.a(entity.getId(), entitytrackerentry);
+             entitytrackerentry.scanPlayers(this.world.players);
+         } catch (Throwable throwable) {
+@@ -146,19 +150,23 @@ public class EntityTracker {
+     public void untrackEntity(Entity entity) {
+         if (entity instanceof EntityPlayer) {
+             EntityPlayer entityplayer = (EntityPlayer) entity;
+-            Iterator iterator = this.c.iterator();
++            synchronized(this.c) { // MinetickMod
++                Iterator iterator = this.c.iterator();
+ 
+-            while (iterator.hasNext()) {
+-                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++                while (iterator.hasNext()) {
++                    EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-                entitytrackerentry.a(entityplayer);
++                    entitytrackerentry.a(entityplayer);
++                }
+             }
+         }
+ 
+         EntityTrackerEntry entitytrackerentry1 = (EntityTrackerEntry) this.trackedEntities.d(entity.getId());
+ 
+         if (entitytrackerentry1 != null) {
+-            this.c.remove(entitytrackerentry1);
++            synchronized(this.c) { // MinetickMod
++                this.c.remove(entitytrackerentry1);
++            }
+             entitytrackerentry1.a();
+         }
+ 
+@@ -166,26 +174,30 @@ public class EntityTracker {
+ 
+     public void updatePlayers() {
+         ArrayList arraylist = Lists.newArrayList();
+-        Iterator iterator = this.c.iterator();
++        synchronized(this.c) { // MinetickMod
++            Iterator iterator = this.c.iterator();
+ 
+-        while (iterator.hasNext()) {
+-            EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++            while (iterator.hasNext()) {
++                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-            entitytrackerentry.track(this.world.players);
+-            if (entitytrackerentry.n && entitytrackerentry.tracker instanceof EntityPlayer) {
+-                arraylist.add((EntityPlayer) entitytrackerentry.tracker);
++                entitytrackerentry.track(this.world.players);
++                if (entitytrackerentry.n && entitytrackerentry.tracker instanceof EntityPlayer) {
++                    arraylist.add((EntityPlayer) entitytrackerentry.tracker);
++                }
+             }
+         }
+ 
+         for (int i = 0; i < arraylist.size(); ++i) {
+             EntityPlayer entityplayer = (EntityPlayer) arraylist.get(i);
+-            Iterator iterator1 = this.c.iterator();
++            synchronized(this.c) { // MinetickMod
++                Iterator iterator1 = this.c.iterator();
+ 
+-            while (iterator1.hasNext()) {
+-                EntityTrackerEntry entitytrackerentry1 = (EntityTrackerEntry) iterator1.next();
++                while (iterator1.hasNext()) {
++                    EntityTrackerEntry entitytrackerentry1 = (EntityTrackerEntry) iterator1.next();
+ 
+-                if (entitytrackerentry1.tracker != entityplayer) {
+-                    entitytrackerentry1.updatePlayer(entityplayer);
++                    if (entitytrackerentry1.tracker != entityplayer) {
++                        entitytrackerentry1.updatePlayer(entityplayer);
++                    }
+                 }
+             }
+         }
+@@ -193,15 +205,17 @@ public class EntityTracker {
+     }
+ 
+     public void a(EntityPlayer entityplayer) {
+-        Iterator iterator = this.c.iterator();
++        synchronized(this.c) { // MinetickMod
++            Iterator iterator = this.c.iterator();
+ 
+-        while (iterator.hasNext()) {
+-            EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++            while (iterator.hasNext()) {
++                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-            if (entitytrackerentry.tracker == entityplayer) {
+-                entitytrackerentry.scanPlayers(this.world.players);
+-            } else {
+-                entitytrackerentry.updatePlayer(entityplayer);
++                if (entitytrackerentry.tracker == entityplayer) {
++                    entitytrackerentry.scanPlayers(this.world.players);
++                } else {
++                    entitytrackerentry.updatePlayer(entityplayer);
++                }
+             }
+         }
+ 
+@@ -226,24 +240,28 @@ public class EntityTracker {
+     }
+ 
+     public void untrackPlayer(EntityPlayer entityplayer) {
+-        Iterator iterator = this.c.iterator();
++        synchronized(this.c) { // MinetickMod
++            Iterator iterator = this.c.iterator();
+ 
+-        while (iterator.hasNext()) {
+-            EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++            while (iterator.hasNext()) {
++                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-            entitytrackerentry.clear(entityplayer);
++                entitytrackerentry.clear(entityplayer);
++            }
+         }
+ 
+     }
+ 
+     public void a(EntityPlayer entityplayer, Chunk chunk) {
+-        Iterator iterator = this.c.iterator();
++        synchronized(this.c) { // MinetickMod
++            Iterator iterator = this.c.iterator();
+ 
+-        while (iterator.hasNext()) {
+-            EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
++            while (iterator.hasNext()) {
++                EntityTrackerEntry entitytrackerentry = (EntityTrackerEntry) iterator.next();
+ 
+-            if (entitytrackerentry.tracker != entityplayer && entitytrackerentry.tracker.ae == chunk.locX && entitytrackerentry.tracker.ag == chunk.locZ) {
+-                entitytrackerentry.updatePlayer(entityplayer);
++                if (entitytrackerentry.tracker != entityplayer && entitytrackerentry.tracker.ae == chunk.locX && entitytrackerentry.tracker.ag == chunk.locZ) {
++                    entitytrackerentry.updatePlayer(entityplayer);
++                }
+             }
+         }
+ 
+-- 
+1.8.3.msysgit.0
+
