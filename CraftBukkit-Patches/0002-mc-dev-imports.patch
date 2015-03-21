@@ -1,6 +1,6 @@
-From c9a03bca9f30b6578a92ff4eeb9a96647aa7f471 Mon Sep 17 00:00:00 2001
+From 66ab736dd01b833ee86a1948bee4036904badbe3 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 21 Mar 2015 15:21:12 +0100
+Date: Sat, 21 Mar 2015 17:48:22 +0100
 Subject: [PATCH] mc dev imports
 
 
@@ -1242,20 +1242,22 @@ index 0000000..4f2c865
 +}
 diff --git a/src/main/java/net/minecraft/server/FileIOThread.java b/src/main/java/net/minecraft/server/FileIOThread.java
 new file mode 100644
-index 0000000..4733f94
+index 0000000..c54693c
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/FileIOThread.java
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,77 @@
 +package net.minecraft.server;
 +
 +import com.google.common.collect.Lists;
++
++import java.util.ArrayList;
 +import java.util.Collections;
 +import java.util.List;
 +
 +public class FileIOThread implements Runnable {
 +
 +    private static final FileIOThread a = new FileIOThread();
-+    private List<IAsyncChunkSaver> b = Collections.synchronizedList(Lists.newArrayList());
++    private List<IAsyncChunkSaver> b = Collections.synchronizedList(new ArrayList<IAsyncChunkSaver>());
 +    private volatile long c;
 +    private volatile long d;
 +    private volatile boolean e;
