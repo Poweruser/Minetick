@@ -1,0 +1,70 @@
+From ed49691b98a8a1a54cc49d260622cae26839ab7c Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 17:33:19 +0100
+Subject: [PATCH] Dont Spam ExperienceOrb TargetEvents
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityExperienceOrb.java b/src/main/java/net/minecraft/server/EntityExperienceOrb.java
+index 7d2d480..8601bec 100644
+--- a/src/main/java/net/minecraft/server/EntityExperienceOrb.java
++++ b/src/main/java/net/minecraft/server/EntityExperienceOrb.java
+@@ -59,11 +59,28 @@ public class EntityExperienceOrb extends Entity {
+         this.j(this.locX, (this.getBoundingBox().b + this.getBoundingBox().e) / 2.0D, this.locZ);
+         double d0 = 8.0D;
+ 
++        // MinetickMod
++        EntityHuman foundTarget = null;
+         if (this.targetTime < this.a - 20 + this.getId() % 100) {
+             if (this.targetPlayer == null || this.targetPlayer.h(this) > d0 * d0) {
+-                this.targetPlayer = this.world.findNearbyPlayer(this, d0);
++                foundTarget = this.world.findNearbyPlayer(this, d0);
++                if(foundTarget == null) {
++                    this.targetPlayer = foundTarget;
++                } else if(foundTarget != null && !foundTarget.equals(this.targetPlayer)) {
++                    // CraftBukkit start
++                    EntityTargetEvent event = CraftEventFactory.callEntityTargetEvent(this, foundTarget, EntityTargetEvent.TargetReason.CLOSEST_PLAYER);
++                    Entity target = event.getTarget() == null ? null : ((org.bukkit.craftbukkit.entity.CraftEntity) event.getTarget()).getHandle();
++                    if(!event.isCancelled()) {
++                        if(target == null) {
++                            this.targetPlayer = null;
++                        } else if(target instanceof EntityHuman) {
++                            this.targetPlayer = (EntityHuman) target;
++                        }
++                    }
++                    // CraftBukkit end
++                }
+             }
+-
++        // MinetickMod end
+             this.targetTime = this.a;
+         }
+ 
+@@ -72,16 +89,6 @@ public class EntityExperienceOrb extends Entity {
+         }
+ 
+         if (this.targetPlayer != null) {
+-            // CraftBukkit start
+-            boolean cancelled = false;
+-            if (this.targetPlayer != prevTarget) {
+-                EntityTargetLivingEntityEvent event = CraftEventFactory.callEntityTargetLivingEvent(this, targetPlayer, EntityTargetEvent.TargetReason.CLOSEST_PLAYER);
+-                EntityLiving target = event.getTarget() == null ? null : ((org.bukkit.craftbukkit.entity.CraftLivingEntity) event.getTarget()).getHandle();
+-                targetPlayer = target instanceof EntityHuman ? (EntityHuman) target : null;
+-                cancelled = event.isCancelled();
+-            }
+-
+-            if (!cancelled && targetPlayer != null) {
+             double d1 = (this.targetPlayer.locX - this.locX) / d0;
+             double d2 = (this.targetPlayer.locY + (double) this.targetPlayer.getHeadHeight() - this.locY) / d0;
+             double d3 = (this.targetPlayer.locZ - this.locZ) / d0;
+@@ -94,8 +101,6 @@ public class EntityExperienceOrb extends Entity {
+                 this.motY += d2 / d4 * d5 * 0.1D;
+                 this.motZ += d3 / d4 * d5 * 0.1D;
+             }
+-            }
+-            // CraftBukkit end
+         }
+ 
+         this.move(this.motX, this.motY, this.motZ);
+-- 
+1.8.3.msysgit.0
+
