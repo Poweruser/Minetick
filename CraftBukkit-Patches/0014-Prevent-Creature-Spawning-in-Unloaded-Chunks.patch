@@ -1,0 +1,22 @@
+From e9b2683371ae8dfd11ba841b88d4b074e7ab5a74 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 09:25:35 +0100
+Subject: [PATCH] Prevent Creature Spawning in Unloaded Chunks
+
+
+diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
+index 1b9af34..acdd901 100644
+--- a/src/main/java/net/minecraft/server/SpawnerCreature.java
++++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
+@@ -48,7 +48,7 @@ public final class SpawnerCreature {
+                             long chunkCoords = LongHash.toLong(i1 + l, k + j);
+                             if (!this.b.contains(chunkCoords)) {
+                                 ++i;
+-                                if (!flag3 && worldserver.getWorldBorder().isInBounds(i1 + l, k + j)) {
++                                if (!flag3 && worldserver.isChunkLoaded(i1 + l, k + j, true) && worldserver.getWorldBorder().isInBounds(i1 + l, k + j)) { // MinetickMod
+                                     this.b.add(chunkCoords);
+                                 }
+                             }
+-- 
+1.8.3.msysgit.0
+
