@@ -1,0 +1,117 @@
+From 2d97686532cc0d2ecaf22544d99463d178b45391 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 04:23:39 +0100
+Subject: [PATCH] Queue Entities for Dimension Change
+
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index d004df3..510ede2 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -114,6 +114,14 @@ public abstract class Entity implements ICommandListener {
+     public boolean valid; // CraftBukkit
+     public org.bukkit.projectiles.ProjectileSource projectileSource; // CraftBukkit - For projectiles only
+ 
++    // MinetickMod start
++    private int targetDimension;
++
++    public int getTargetDimension() {
++        return this.targetDimension;
++    }
++    // MinetickMod end
++
+     public int getId() {
+         return this.id;
+     }
+@@ -142,6 +150,7 @@ public abstract class Entity implements ICommandListener {
+         this.setPosition(0.0D, 0.0D, 0.0D);
+         if (world != null) {
+             this.dimension = world.worldProvider.getDimension();
++            this.targetDimension = this.dimension; // MinetickMod
+         }
+ 
+         this.datawatcher = new DataWatcher(this);
+@@ -1856,6 +1865,15 @@ public abstract class Entity implements ICommandListener {
+     }
+ 
+     public void c(int i) {
++        // MinetickMod start - Entities will be queued and teleported after all worlds have been ticked
++        if(i != this.dimension) {
++            this.targetDimension = i;
++            this.world.queueEntityForDimensionChange(this);
++        }
++    }
++
++    public void changeDimension(int i) {
++        // MinetickMod end
+         if (!this.world.isClientSide && !this.dead) {
+             this.world.methodProfiler.a("changeDimension");
+             MinecraftServer minecraftserver = MinecraftServer.getServer();
+@@ -1885,7 +1903,9 @@ public abstract class Entity implements ICommandListener {
+                 return;
+             }
+             exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(event.getTo()) : event.getTo();
+-            this.teleportTo(exit, true);
++            if(exit != null) { // MinetickMod
++                this.teleportTo(exit, true);
++            }
+         }
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 2693031..b18aef9 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -738,6 +738,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+             // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
+         }
+ 
++        // MinetickMod start
++        for(i = 0; i < this.worlds.size(); ++i) {
++            WorldServer worldserver = this.worlds.get(i);
++            worldserver.processDimensionChangeQueue();
++        }
++        // MinetickMod end
++
+         this.methodProfiler.c("connection");
+         this.ap().c();
+         this.methodProfiler.c("players");
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index b800d79..1d95a18 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -32,6 +32,10 @@ import org.bukkit.event.weather.WeatherChangeEvent;
+ import org.bukkit.event.weather.ThunderChangeEvent;
+ // CraftBukkit end
+ 
++// MinetickMod start
++import java.util.Collections;
++// MinetickMod end
++
+ public abstract class World implements IBlockAccess {
+ 
+     private int a = 63;
+@@ -164,6 +168,20 @@ public abstract class World implements IBlockAccess {
+ 
+     // MinetickMod start
+     public boolean instaFall = false;
++    private List<Entity> dimensionChangeQueue = Collections.synchronizedList(new ArrayList<Entity>());
++
++    public void queueEntityForDimensionChange(Entity entity) {
++        this.dimensionChangeQueue.add(entity);
++    }
++
++    public void processDimensionChangeQueue() {
++        Iterator<Entity> iter = this.dimensionChangeQueue.iterator();
++        while(iter.hasNext()) {
++            Entity entity = iter.next();
++            entity.changeDimension(entity.getTargetDimension());
++            iter.remove();
++        }
++    }
+     // MinetickMod end
+ 
+     public World b() {
+-- 
+1.8.3.msysgit.0
+
