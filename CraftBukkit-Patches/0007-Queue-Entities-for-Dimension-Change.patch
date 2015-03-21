@@ -1,6 +1,6 @@
-From 2d97686532cc0d2ecaf22544d99463d178b45391 Mon Sep 17 00:00:00 2001
+From 362f5c7f9021fe79ef804b9a6a4e6e60434e7366 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 21 Mar 2015 04:23:39 +0100
+Date: Sat, 21 Mar 2015 09:00:14 +0100
 Subject: [PATCH] Queue Entities for Dimension Change
 
 
@@ -58,6 +58,23 @@ index d004df3..510ede2 100644
          }
      }
  
+diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
+index aefed46..550e506 100644
+--- a/src/main/java/net/minecraft/server/EntityPlayer.java
++++ b/src/main/java/net/minecraft/server/EntityPlayer.java
+@@ -493,6 +493,12 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+     }
+
+     public void c(int i) {
++        // MinetickMod start
++        super.c(i);
++    }
++
++    public void changeDimension(int i) {
++        // MinetickMod end
+         if (this.dimension == 1 && i == 1) {
+             this.b((Statistic) AchievementList.D);
+             this.world.kill(this);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
 index 2693031..b18aef9 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
