@@ -1,4 +1,4 @@
-From 362f5c7f9021fe79ef804b9a6a4e6e60434e7366 Mon Sep 17 00:00:00 2001
+From c798d5e8dd157e61bdac71a01459eb7ff13f113f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 09:00:14 +0100
 Subject: [PATCH] Queue Entities for Dimension Change
@@ -64,7 +64,7 @@ index aefed46..550e506 100644
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -493,6 +493,12 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
      }
-
+ 
      public void c(int i) {
 +        // MinetickMod start
 +        super.c(i);
