@@ -1,0 +1,179 @@
+From 4cc0e2d099aa923216f412f322e899c794064783 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 15:40:04 +0100
+Subject: [PATCH] Non Blocking Auto Save
+
+
+diff --git a/src/main/java/de/minetick/AutoSaveJob.java b/src/main/java/de/minetick/AutoSaveJob.java
+new file mode 100644
+index 0000000..ee15645
+--- /dev/null
++++ b/src/main/java/de/minetick/AutoSaveJob.java
+@@ -0,0 +1,58 @@
++package de.minetick;
++
++import org.bukkit.Bukkit;
++import org.bukkit.event.world.WorldSaveEvent;
++
++import net.minecraft.server.ExceptionWorldConflict;
++import net.minecraft.server.FileIOThread;
++import net.minecraft.server.IProgressUpdate;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.RegionFileCache;
++import net.minecraft.server.WorldServer;
++
++public class AutoSaveJob {
++
++    public enum JobDetail {
++        WORLD_SAVE,
++        WORLD_SAVEEVENT,
++    }
++
++    private WorldServer worldserver;
++    private JobDetail jobDetail;
++
++    public AutoSaveJob(JobDetail detail, WorldServer worldserver) {
++        this.jobDetail = detail;
++        this.worldserver = worldserver;
++    }
++
++    /**
++     * 
++     * @return true if the job shall be removed from the autosave queue
++     * @throws ExceptionWorldConflict
++     */
++
++    public boolean process() throws ExceptionWorldConflict {
++        if(this.isJob(JobDetail.WORLD_SAVE) && this.worldserver != null) {
++            MinecraftServer.getServer().info("[AutoSave] Saving world " + this.worldserver.getWorld().getName());
++            this.worldserver.save(true, (IProgressUpdate) null);
++            FileIOThread.a().setNoDelay(true);
++        } else if(this.isJob(JobDetail.WORLD_SAVEEVENT) && this.worldserver != null) {
++            if(FileIOThread.a().isDone()) {
++                FileIOThread.a().setNoDelay(false);
++                RegionFileCache.a();
++                Bukkit.getPluginManager().callEvent(new WorldSaveEvent(this.worldserver.getWorld()));
++            } else {
++                return false;
++            }
++        }
++        this.worldserver = null;
++        return true;
++    }
++
++    private boolean isJob(JobDetail detail) {
++        if(this.jobDetail != null) {
++            return this.jobDetail.equals(detail);
++        }
++        return false;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/FileIOThread.java b/src/main/java/net/minecraft/server/FileIOThread.java
+index 4733f94..d2c91bd 100644
+--- a/src/main/java/net/minecraft/server/FileIOThread.java
++++ b/src/main/java/net/minecraft/server/FileIOThread.java
+@@ -12,6 +12,16 @@ public class FileIOThread implements Runnable {
+     private volatile long d;
+     private volatile boolean e;
+ 
++    // MinetickMod start
++    public boolean isDone() {
++        return this.c == this.d;
++    }
++
++    public void setNoDelay(boolean active) {
++        this.e = active;
++    }
++    // MinetickMod end
++
+     private FileIOThread() {
+         Thread thread = new Thread(this, "File IO Thread");
+ 
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 5537dfa..2f896f6 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -10,6 +10,7 @@ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.GameProfileRepository;
+ import com.mojang.authlib.minecraft.MinecraftSessionService;
+ import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
++
+ import io.netty.buffer.ByteBuf;
+ import io.netty.buffer.ByteBufOutputStream;
+ import io.netty.buffer.Unpooled;
+@@ -51,6 +52,13 @@ import org.bukkit.event.server.RemoteServerCommandEvent;
+ import org.bukkit.event.world.WorldSaveEvent;
+ // CraftBukkit end
+ 
++// MinetickMod start
++import de.minetick.AutoSaveJob;
++import de.minetick.AutoSaveJob.JobDetail;
++
++import java.util.LinkedList;
++// MinetickMod end
++
+ public abstract class MinecraftServer implements Runnable, ICommandListener, IAsyncTaskHandler, IMojangStatistics {
+ 
+     public static final Logger LOGGER = LogManager.getLogger();
+@@ -122,6 +130,40 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+ 
+     // MinetickMod start
+     protected boolean snooperEnabled;
++    private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
++    private int autoSaveDelay = 0;
++    private boolean autoSaveOrdered = false;
++
++    private void queueWorldsForAutoSave() {
++        if (!this.N) {
++            this.autoSaveWorlds.clear();
++            for (int j = 0; j < this.worlds.size(); ++j) {
++                WorldServer worldserver = this.worlds.get(j);
++                if(worldserver != null) {
++                    this.autoSaveWorlds.add(new AutoSaveJob(JobDetail.WORLD_SAVE, worldserver));
++                    this.autoSaveWorlds.add(new AutoSaveJob(JobDetail.WORLD_SAVEEVENT, worldserver));
++                }
++            }
++            int queuesize = this.autoSaveWorlds.size() / 2;
++            this.autoSaveDelay = 0;
++            this.autoSaveOrdered = true;
++            this.info("[AutoSave] " + queuesize + " worlds - Starting ...");
++        }
++    }
++
++    private void autoSaveNextWorld() throws ExceptionWorldConflict {
++        if(!this.autoSaveWorlds.isEmpty()) {
++            if(this.autoSaveDelay++ > 20) { // delay of 1 seconds between checks of the auto-save job queue
++                this.autoSaveDelay = 0;
++                if(this.autoSaveWorlds.getFirst().process()) {
++                    this.autoSaveWorlds.removeFirst();
++                }
++            }
++        } else if(this.autoSaveOrdered){
++            this.info("[AutoSave] Done.");
++            this.autoSaveOrdered = false;
++        }
++    }
+     // MinetickMod end
+ 
+     public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
+@@ -645,10 +687,16 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         if (autosavePeriod > 0 && this.ticks % autosavePeriod == 0) { // CraftBukkit
+             this.methodProfiler.a("save");
+             this.v.savePlayers();
+-            this.saveChunks(true);
++            this.queueWorldsForAutoSave(); // MinetickMod
+             this.methodProfiler.b();
+         }
+ 
++        // MinetickMod start
++        if(this.autoSaveOrdered) {
++            this.autoSaveNextWorld();
++        }
++        // MinetickMod end
++
+         this.methodProfiler.a("tallying");
+         this.h[this.ticks % 100] = System.nanoTime() - i;
+         this.methodProfiler.b();
+-- 
+1.8.3.msysgit.0
+

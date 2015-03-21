@@ -1,4 +1,4 @@
-From dfc6cdf574a757255e48edccd899eb392cf160ec Mon Sep 17 00:00:00 2001
+From 74738902eeeabc9e7f9c2dd7f80bebe91d29faee Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 14:33:13 +0100
 Subject: [PATCH] Dont Ignore Snooper Setting
@@ -24,7 +24,7 @@ index b18aef9..5537dfa 100644
 @@ -120,6 +120,10 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      public int autosavePeriod;
      // CraftBukkit end
-
+ 
 +    // MinetickMod start
 +    protected boolean snooperEnabled;
 +    // MinetickMod end
