@@ -1,0 +1,31 @@
+From 395f571126d2d4c08cf8d3f35a21a19759f7f80d Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 03:14:52 +0100
+Subject: [PATCH] Guard BlockRedstoneWire against a CME
+
+
+diff --git a/src/main/java/net/minecraft/server/BlockRedstoneWire.java b/src/main/java/net/minecraft/server/BlockRedstoneWire.java
+index ea87aa5..bce7c85 100644
+--- a/src/main/java/net/minecraft/server/BlockRedstoneWire.java
++++ b/src/main/java/net/minecraft/server/BlockRedstoneWire.java
+@@ -64,10 +64,14 @@ public class BlockRedstoneWire extends Block {
+     }
+ 
+     private IBlockData e(World world, BlockPosition blockposition, IBlockData iblockdata) {
+-        iblockdata = this.a(world, blockposition, blockposition, iblockdata);
+-        ArrayList arraylist = Lists.newArrayList(this.R);
++        ArrayList arraylist;
++        synchronized(this.R) { // MinetickMod
++            iblockdata = this.a(world, blockposition, blockposition, iblockdata);
++            arraylist = Lists.newArrayList(this.R);
++
++            this.R.clear();
++        }
+ 
+-        this.R.clear();
+         Iterator iterator = arraylist.iterator();
+ 
+         while (iterator.hasNext()) {
+-- 
+1.8.3.msysgit.0
+
