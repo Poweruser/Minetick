@@ -1,0 +1,116 @@
+From c6f4e643002c17bdcbb6a73aa4381ccb0630c028 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 05:06:25 +0100
+Subject: [PATCH] Fix TickNextTick Lists
+
+
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 04da01e..722c83c 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -34,8 +34,10 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+     private final MinecraftServer server;
+     public EntityTracker tracker; // CraftBukkit - public, remove final
+     private final PlayerChunkMap manager;
+-    private final Set<NextTickListEntry> L = Sets.newHashSet();
+-    private final TreeSet<NextTickListEntry> M = new TreeSet();
++    // MinetickMod start - Replaced a HashSet and a TreeSet with a LinkedHashSet and a PriorityQueue
++    private final Set<NextTickListEntry> L = new LinkedHashSet<NextTickListEntry>();
++    private final PriorityQueue<NextTickListEntry> M = new PriorityQueue<NextTickListEntry>();
++    // MinetickMod end
+     private final Map<UUID, Entity> entitiesByUUID = Maps.newHashMap();
+     public ChunkProviderServer chunkProviderServer;
+     public boolean savingDisabled;
+@@ -567,11 +569,20 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         if (this.worldData.getType() == WorldType.DEBUG_ALL_BLOCK_STATES) {
+             return false;
+         } else {
+-            int i = this.M.size();
+-
+-            if (i != this.L.size()) {
+-                throw new IllegalStateException("TickNextTick list out of synch");
+-            } else {
++            // MinetickMod start
++            int i = this.L.size();
++            int queueSize = this.M.size();
++            if (i != queueSize) {
++                a.warn("TickNextTick list out of synch - World: " + this.getWorld().getName() + ". Recovering...");
++                if(i > queueSize) {
++                    this.M.clear();
++                    this.M.addAll(this.L);
++                } else if(queueSize > i) {
++                    this.L.clear();
++                    this.L.addAll(this.M);
++                }
++            }
++            // MinetickMod end
+                 if (i > 1000) {
+                     // CraftBukkit start - If the server has too much to process over time, try to alleviate that
+                     if (i > 20 * 1000) {
+@@ -586,13 +597,15 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+                 NextTickListEntry nextticklistentry;
+ 
+-                for (int j = 0; j < i; ++j) {
+-                    nextticklistentry = (NextTickListEntry) this.M.first();
++                // MinetickMod start
++                for (int j = 0; j < i && !this.M.isEmpty(); ++j) {
++                    nextticklistentry = (NextTickListEntry) this.M.peek();
+                     if (!flag && nextticklistentry.b > this.worldData.getTime()) {
+                         break;
+                     }
+ 
+-                    this.M.remove(nextticklistentry);
++                    this.M.poll();
++                // MinetickMod end
+                     this.L.remove(nextticklistentry);
+                     this.V.add(nextticklistentry);
+                 }
+@@ -628,7 +641,6 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+                 this.methodProfiler.b();
+                 this.V.clear();
+                 return !this.M.isEmpty();
+-            }
+         }
+     }
+ 
+@@ -648,15 +660,15 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         for (int i = 0; i < 2; ++i) {
+             Iterator iterator;
+ 
+-            boolean remove = false; // CraftBukkit
+             if (i == 0) {
+-                remove = true; // CraftBukkit
+-                iterator = this.M.iterator();
++                iterator = this.L.iterator(); // MinetickMod
+             } else {
+                 iterator = this.V.iterator();
++                /* MinetickMod start - Comment out debug spam - This is actually a missed diff in CraftBukkit
+                 if (!this.V.isEmpty()) {
+                     WorldServer.a.debug("toBeTicked = " + this.V.size());
+                 }
++                */
+             }
+ 
+             while (iterator.hasNext()) {
+@@ -665,8 +677,15 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+                 if (blockposition.getX() >= structureboundingbox.a && blockposition.getX() < structureboundingbox.d && blockposition.getZ() >= structureboundingbox.c && blockposition.getZ() < structureboundingbox.f) {
+                     if (flag) {
+-                        if (remove) // CraftBukkit
+-                        this.L.remove(nextticklistentry);
++                        // MinetickMod start
++                        if(i == 0) {
++                            this.V.remove(nextticklistentry);
++                            this.M.remove(nextticklistentry);
++                        } else {
++                            this.L.remove(nextticklistentry);
++                            this.M.remove(nextticklistentry);
++                        }
++                        // MinetickMod end
+                         iterator.remove();
+                     }
+ 
+-- 
+1.8.3.msysgit.0
+
