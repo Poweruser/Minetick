@@ -1,0 +1,63 @@
+From 7e66658e61a9b3e6ba5a506e0cb2e6de0796e7db Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 08:18:36 +0100
+Subject: [PATCH] Prevent Village Doors from Loading Chunks
+
+
+diff --git a/src/main/java/net/minecraft/server/Village.java b/src/main/java/net/minecraft/server/Village.java
+index e67aa04..be202bd 100644
+--- a/src/main/java/net/minecraft/server/Village.java
++++ b/src/main/java/net/minecraft/server/Village.java
+@@ -41,7 +41,33 @@ public class Village {
+         this.a = world;
+     }
+ 
++    // MinetickMod start
++    private BlockPosition[] positions = null;
++
++    private void calculateNewCheckPositions() {
++        if(this.d == null || this.d.equals(BlockPosition.ZERO)) {
++            this.positions = null;
++        } else {
++            this.positions = new BlockPosition[] { this.d.a(-this.e, 0, -this.e),
++                                               this.d.a(-this.e, 0, this.e),
++                                               this.d.a(this.e, 0, -this.e),
++                                               this.d.a(this.e, 0, this.e),
++                                               this.d};
++        }
++    }
++
++    public boolean isVillageAreaLoaded() {
++        for(int i = 0; this.positions != null && i < this.positions.length; i++) {
++            if(this.a.isLoaded(this.positions[i])) {
++                return true;
++            }
++        }
++        return false;
++    }
++    // MinetickMod end
++
+     public void a(int i) {
++        if(!this.isVillageAreaLoaded()) { return; } // MinetickMod
+         this.g = i;
+         this.m();
+         this.l();
+@@ -341,6 +367,7 @@ public class Village {
+ 
+             this.e = Math.max(32, (int) Math.sqrt((double) j) + 1);
+         }
++        this.calculateNewCheckPositions(); // MinetickMod
+     }
+ 
+     public int a(String s) {
+@@ -396,6 +423,7 @@ public class Village {
+             }
+         }
+ 
++        this.calculateNewCheckPositions(); // MinetickMod
+     }
+ 
+     public void b(NBTTagCompound nbttagcompound) {
+-- 
+1.8.3.msysgit.0
+
