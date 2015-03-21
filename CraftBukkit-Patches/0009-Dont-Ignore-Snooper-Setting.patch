@@ -1,4 +1,4 @@
-From 13d0e7c970bb9399162cb9fddbc5017510d017e8 Mon Sep 17 00:00:00 2001
+From dfc6cdf574a757255e48edccd899eb392cf160ec Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 14:33:13 +0100
 Subject: [PATCH] Dont Ignore Snooper Setting

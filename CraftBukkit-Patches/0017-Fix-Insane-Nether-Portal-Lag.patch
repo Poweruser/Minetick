@@ -1,11 +1,11 @@
-From 5e3d885981522fd94369dd48fa0bf88ab41605ca Mon Sep 17 00:00:00 2001
+From 654541e516df8e9903a7a31ec13790ccf8c45ce3 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 21 Mar 2015 13:33:46 +0100
+Date: Sat, 21 Mar 2015 14:39:47 +0100
 Subject: [PATCH] Fix Insane Nether Portal Lag
 
 
 diff --git a/src/main/java/net/minecraft/server/PortalTravelAgent.java b/src/main/java/net/minecraft/server/PortalTravelAgent.java
-index 4d4b683..7c2b8f4 100644
+index 4d4b683..acb607b 100644
 --- a/src/main/java/net/minecraft/server/PortalTravelAgent.java
 +++ b/src/main/java/net/minecraft/server/PortalTravelAgent.java
 @@ -94,7 +94,13 @@ public class PortalTravelAgent {
@@ -50,7 +50,7 @@ index 4d4b683..7c2b8f4 100644
 +                        mutableblockposition.c(blockposition.getX() + xDiff, yPos, blockposition.getZ() + zDiff);
 +                        if (this.a.getType(mutableblockposition).getBlock() == Blocks.PORTAL) {
 +                            int lowestCorrectHeight = mutableblockposition.getY();
-+                            while (this.a.getType(mutableblockposition.c(mutableblockposition.getX(), mutableblockposition.getY() - 1, mutableblockposition.getZ())).getBLock() == Blocks.PORTAL) {
++                            while (this.a.getType(mutableblockposition.c(mutableblockposition.getX(), mutableblockposition.getY() - 1, mutableblockposition.getZ())).getBlock() == Blocks.PORTAL) {
 +                                lowestCorrectHeight = mutableblockposition.getY();
                              }
  
