@@ -1,0 +1,1245 @@
+From cce137f6118b327dfb148ecba4fcf94459b49abb Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 21 Mar 2015 02:46:07 +0100
+Subject: [PATCH] mc dev imports
+
+
+diff --git a/src/main/java/net/minecraft/server/BlockFalling.java b/src/main/java/net/minecraft/server/BlockFalling.java
+new file mode 100644
+index 0000000..29f8554
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/BlockFalling.java
+@@ -0,0 +1,75 @@
++package net.minecraft.server;
++
++import java.util.Random;
++
++public class BlockFalling extends Block {
++
++    public static boolean instaFall;
++
++    public BlockFalling() {
++        super(Material.SAND);
++        this.a(CreativeModeTab.b);
++    }
++
++    public BlockFalling(Material material) {
++        super(material);
++    }
++
++    public void onPlace(World world, BlockPosition blockposition, IBlockData iblockdata) {
++        world.a(blockposition, (Block) this, this.a(world));
++    }
++
++    public void doPhysics(World world, BlockPosition blockposition, IBlockData iblockdata, Block block) {
++        world.a(blockposition, (Block) this, this.a(world));
++    }
++
++    public void b(World world, BlockPosition blockposition, IBlockData iblockdata, Random random) {
++        if (!world.isClientSide) {
++            this.f(world, blockposition);
++        }
++
++    }
++
++    private void f(World world, BlockPosition blockposition) {
++        if (canFall(world, blockposition.down()) && blockposition.getY() >= 0) {
++            byte b0 = 32;
++
++            if (!BlockFalling.instaFall && world.areChunksLoadedBetween(blockposition.a(-b0, -b0, -b0), blockposition.a(b0, b0, b0))) {
++                if (!world.isClientSide) {
++                    EntityFallingBlock entityfallingblock = new EntityFallingBlock(world, (double) blockposition.getX() + 0.5D, (double) blockposition.getY(), (double) blockposition.getZ() + 0.5D, world.getType(blockposition));
++
++                    this.a(entityfallingblock);
++                    world.addEntity(entityfallingblock);
++                }
++            } else {
++                world.setAir(blockposition);
++
++                BlockPosition blockposition1;
++
++                for (blockposition1 = blockposition.down(); canFall(world, blockposition1) && blockposition1.getY() > 0; blockposition1 = blockposition1.down()) {
++                    ;
++                }
++
++                if (blockposition1.getY() > 0) {
++                    world.setTypeUpdate(blockposition1.up(), this.getBlockData());
++                }
++            }
++
++        }
++    }
++
++    protected void a(EntityFallingBlock entityfallingblock) {}
++
++    public int a(World world) {
++        return 2;
++    }
++
++    public static boolean canFall(World world, BlockPosition blockposition) {
++        Block block = world.getType(blockposition).getBlock();
++        Material material = block.material;
++
++        return block == Blocks.FIRE || material == Material.AIR || material == Material.WATER || material == Material.LAVA;
++    }
++
++    public void a_(World world, BlockPosition blockposition) {}
++}
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderGenerate.java b/src/main/java/net/minecraft/server/ChunkProviderGenerate.java
+new file mode 100644
+index 0000000..e0be3c1
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/ChunkProviderGenerate.java
+@@ -0,0 +1,472 @@
++package net.minecraft.server;
++
++import java.util.List;
++import java.util.Random;
++
++public class ChunkProviderGenerate implements IChunkProvider {
++
++    private Random h;
++    private NoiseGeneratorOctaves i;
++    private NoiseGeneratorOctaves j;
++    private NoiseGeneratorOctaves k;
++    private NoiseGenerator3 l;
++    public NoiseGeneratorOctaves a;
++    public NoiseGeneratorOctaves b;
++    public NoiseGeneratorOctaves c;
++    private World m;
++    private final boolean n;
++    private WorldType o;
++    private final double[] p;
++    private final float[] q;
++    private CustomWorldSettingsFinal r;
++    private Block s;
++    private double[] t;
++    private WorldGenBase u;
++    private WorldGenStronghold v;
++    private WorldGenVillage w;
++    private WorldGenMineshaft x;
++    private WorldGenLargeFeature y;
++    private WorldGenBase z;
++    private WorldGenMonument A;
++    private BiomeBase[] B;
++    double[] d;
++    double[] e;
++    double[] f;
++    double[] g;
++
++    public ChunkProviderGenerate(World world, long i, boolean flag, String s) {
++        this.s = Blocks.WATER;
++        this.t = new double[256];
++        this.u = new WorldGenCaves();
++        this.v = new WorldGenStronghold();
++        this.w = new WorldGenVillage();
++        this.x = new WorldGenMineshaft();
++        this.y = new WorldGenLargeFeature();
++        this.z = new WorldGenCanyon();
++        this.A = new WorldGenMonument();
++        this.m = world;
++        this.n = flag;
++        this.o = world.getWorldData().getType();
++        this.h = new Random(i);
++        this.i = new NoiseGeneratorOctaves(this.h, 16);
++        this.j = new NoiseGeneratorOctaves(this.h, 16);
++        this.k = new NoiseGeneratorOctaves(this.h, 8);
++        this.l = new NoiseGenerator3(this.h, 4);
++        this.a = new NoiseGeneratorOctaves(this.h, 10);
++        this.b = new NoiseGeneratorOctaves(this.h, 16);
++        this.c = new NoiseGeneratorOctaves(this.h, 8);
++        this.p = new double[825];
++        this.q = new float[25];
++
++        for (int j = -2; j <= 2; ++j) {
++            for (int k = -2; k <= 2; ++k) {
++                float f = 10.0F / MathHelper.c((float) (j * j + k * k) + 0.2F);
++
++                this.q[j + 2 + (k + 2) * 5] = f;
++            }
++        }
++
++        if (s != null) {
++            this.r = CustomWorldSettingsFinal.CustomWorldSettings.a(s).b();
++            this.s = this.r.E ? Blocks.LAVA : Blocks.WATER;
++            world.b(this.r.q);
++        }
++
++    }
++
++    public void a(int i, int j, ChunkSnapshot chunksnapshot) {
++        this.B = this.m.getWorldChunkManager().getBiomes(this.B, i * 4 - 2, j * 4 - 2, 10, 10);
++        this.a(i * 4, 0, j * 4);
++
++        for (int k = 0; k < 4; ++k) {
++            int l = k * 5;
++            int i1 = (k + 1) * 5;
++
++            for (int j1 = 0; j1 < 4; ++j1) {
++                int k1 = (l + j1) * 33;
++                int l1 = (l + j1 + 1) * 33;
++                int i2 = (i1 + j1) * 33;
++                int j2 = (i1 + j1 + 1) * 33;
++
++                for (int k2 = 0; k2 < 32; ++k2) {
++                    double d0 = 0.125D;
++                    double d1 = this.p[k1 + k2];
++                    double d2 = this.p[l1 + k2];
++                    double d3 = this.p[i2 + k2];
++                    double d4 = this.p[j2 + k2];
++                    double d5 = (this.p[k1 + k2 + 1] - d1) * d0;
++                    double d6 = (this.p[l1 + k2 + 1] - d2) * d0;
++                    double d7 = (this.p[i2 + k2 + 1] - d3) * d0;
++                    double d8 = (this.p[j2 + k2 + 1] - d4) * d0;
++
++                    for (int l2 = 0; l2 < 8; ++l2) {
++                        double d9 = 0.25D;
++                        double d10 = d1;
++                        double d11 = d2;
++                        double d12 = (d3 - d1) * d9;
++                        double d13 = (d4 - d2) * d9;
++
++                        for (int i3 = 0; i3 < 4; ++i3) {
++                            double d14 = 0.25D;
++                            double d15 = (d11 - d10) * d14;
++                            double d16 = d10 - d15;
++
++                            for (int j3 = 0; j3 < 4; ++j3) {
++                                if ((d16 += d15) > 0.0D) {
++                                    chunksnapshot.a(k * 4 + i3, k2 * 8 + l2, j1 * 4 + j3, Blocks.STONE.getBlockData());
++                                } else if (k2 * 8 + l2 < this.r.q) {
++                                    chunksnapshot.a(k * 4 + i3, k2 * 8 + l2, j1 * 4 + j3, this.s.getBlockData());
++                                }
++                            }
++
++                            d10 += d12;
++                            d11 += d13;
++                        }
++
++                        d1 += d5;
++                        d2 += d6;
++                        d3 += d7;
++                        d4 += d8;
++                    }
++                }
++            }
++        }
++
++    }
++
++    public void a(int i, int j, ChunkSnapshot chunksnapshot, BiomeBase[] abiomebase) {
++        double d0 = 0.03125D;
++
++        this.t = this.l.a(this.t, (double) (i * 16), (double) (j * 16), 16, 16, d0 * 2.0D, d0 * 2.0D, 1.0D);
++
++        for (int k = 0; k < 16; ++k) {
++            for (int l = 0; l < 16; ++l) {
++                BiomeBase biomebase = abiomebase[l + k * 16];
++
++                biomebase.a(this.m, this.h, chunksnapshot, i * 16 + k, j * 16 + l, this.t[l + k * 16]);
++            }
++        }
++
++    }
++
++    public Chunk getOrCreateChunk(int i, int j) {
++        this.h.setSeed((long) i * 341873128712L + (long) j * 132897987541L);
++        ChunkSnapshot chunksnapshot = new ChunkSnapshot();
++
++        this.a(i, j, chunksnapshot);
++        this.B = this.m.getWorldChunkManager().getBiomeBlock(this.B, i * 16, j * 16, 16, 16);
++        this.a(i, j, chunksnapshot, this.B);
++        if (this.r.r) {
++            this.u.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.z) {
++            this.z.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.w && this.n) {
++            this.x.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.v && this.n) {
++            this.w.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.u && this.n) {
++            this.v.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.x && this.n) {
++            this.y.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        if (this.r.y && this.n) {
++            this.A.a(this, this.m, i, j, chunksnapshot);
++        }
++
++        Chunk chunk = new Chunk(this.m, chunksnapshot, i, j);
++        byte[] abyte = chunk.getBiomeIndex();
++
++        for (int k = 0; k < abyte.length; ++k) {
++            abyte[k] = (byte) this.B[k].id;
++        }
++
++        chunk.initLighting();
++        return chunk;
++    }
++
++    private void a(int i, int j, int k) {
++        this.g = this.b.a(this.g, i, k, 5, 5, (double) this.r.e, (double) this.r.f, (double) this.r.g);
++        float f = this.r.a;
++        float f1 = this.r.b;
++
++        this.d = this.k.a(this.d, i, j, k, 5, 33, 5, (double) (f / this.r.h), (double) (f1 / this.r.i), (double) (f / this.r.j));
++        this.e = this.i.a(this.e, i, j, k, 5, 33, 5, (double) f, (double) f1, (double) f);
++        this.f = this.j.a(this.f, i, j, k, 5, 33, 5, (double) f, (double) f1, (double) f);
++        boolean flag = false;
++        boolean flag1 = false;
++        int l = 0;
++        int i1 = 0;
++
++        for (int j1 = 0; j1 < 5; ++j1) {
++            for (int k1 = 0; k1 < 5; ++k1) {
++                float f2 = 0.0F;
++                float f3 = 0.0F;
++                float f4 = 0.0F;
++                byte b0 = 2;
++                BiomeBase biomebase = this.B[j1 + 2 + (k1 + 2) * 10];
++
++                for (int l1 = -b0; l1 <= b0; ++l1) {
++                    for (int i2 = -b0; i2 <= b0; ++i2) {
++                        BiomeBase biomebase1 = this.B[j1 + l1 + 2 + (k1 + i2 + 2) * 10];
++                        float f5 = this.r.n + biomebase1.an * this.r.m;
++                        float f6 = this.r.p + biomebase1.ao * this.r.o;
++
++                        if (this.o == WorldType.AMPLIFIED && f5 > 0.0F) {
++                            f5 = 1.0F + f5 * 2.0F;
++                            f6 = 1.0F + f6 * 4.0F;
++                        }
++
++                        float f7 = this.q[l1 + 2 + (i2 + 2) * 5] / (f5 + 2.0F);
++
++                        if (biomebase1.an > biomebase.an) {
++                            f7 /= 2.0F;
++                        }
++
++                        f2 += f6 * f7;
++                        f3 += f5 * f7;
++                        f4 += f7;
++                    }
++                }
++
++                f2 /= f4;
++                f3 /= f4;
++                f2 = f2 * 0.9F + 0.1F;
++                f3 = (f3 * 4.0F - 1.0F) / 8.0F;
++                double d0 = this.g[i1] / 8000.0D;
++
++                if (d0 < 0.0D) {
++                    d0 = -d0 * 0.3D;
++                }
++
++                d0 = d0 * 3.0D - 2.0D;
++                if (d0 < 0.0D) {
++                    d0 /= 2.0D;
++                    if (d0 < -1.0D) {
++                        d0 = -1.0D;
++                    }
++
++                    d0 /= 1.4D;
++                    d0 /= 2.0D;
++                } else {
++                    if (d0 > 1.0D) {
++                        d0 = 1.0D;
++                    }
++
++                    d0 /= 8.0D;
++                }
++
++                ++i1;
++                double d1 = (double) f3;
++                double d2 = (double) f2;
++
++                d1 += d0 * 0.2D;
++                d1 = d1 * (double) this.r.k / 8.0D;
++                double d3 = (double) this.r.k + d1 * 4.0D;
++
++                for (int j2 = 0; j2 < 33; ++j2) {
++                    double d4 = ((double) j2 - d3) * (double) this.r.l * 128.0D / 256.0D / d2;
++
++                    if (d4 < 0.0D) {
++                        d4 *= 4.0D;
++                    }
++
++                    double d5 = this.e[l] / (double) this.r.d;
++                    double d6 = this.f[l] / (double) this.r.c;
++                    double d7 = (this.d[l] / 10.0D + 1.0D) / 2.0D;
++                    double d8 = MathHelper.b(d5, d6, d7) - d4;
++
++                    if (j2 > 29) {
++                        double d9 = (double) ((float) (j2 - 29) / 3.0F);
++
++                        d8 = d8 * (1.0D - d9) + -10.0D * d9;
++                    }
++
++                    this.p[l] = d8;
++                    ++l;
++                }
++            }
++        }
++
++    }
++
++    public boolean isChunkLoaded(int i, int j) {
++        return true;
++    }
++
++    public void getChunkAt(IChunkProvider ichunkprovider, int i, int j) {
++        BlockFalling.instaFall = true;
++        int k = i * 16;
++        int l = j * 16;
++        BlockPosition blockposition = new BlockPosition(k, 0, l);
++        BiomeBase biomebase = this.m.getBiome(blockposition.a(16, 0, 16));
++
++        this.h.setSeed(this.m.getSeed());
++        long i1 = this.h.nextLong() / 2L * 2L + 1L;
++        long j1 = this.h.nextLong() / 2L * 2L + 1L;
++
++        this.h.setSeed((long) i * i1 + (long) j * j1 ^ this.m.getSeed());
++        boolean flag = false;
++        ChunkCoordIntPair chunkcoordintpair = new ChunkCoordIntPair(i, j);
++
++        if (this.r.w && this.n) {
++            this.x.a(this.m, this.h, chunkcoordintpair);
++        }
++
++        if (this.r.v && this.n) {
++            flag = this.w.a(this.m, this.h, chunkcoordintpair);
++        }
++
++        if (this.r.u && this.n) {
++            this.v.a(this.m, this.h, chunkcoordintpair);
++        }
++
++        if (this.r.x && this.n) {
++            this.y.a(this.m, this.h, chunkcoordintpair);
++        }
++
++        if (this.r.y && this.n) {
++            this.A.a(this.m, this.h, chunkcoordintpair);
++        }
++
++        int k1;
++        int l1;
++        int i2;
++
++        if (biomebase != BiomeBase.DESERT && biomebase != BiomeBase.DESERT_HILLS && this.r.A && !flag && this.h.nextInt(this.r.B) == 0) {
++            k1 = this.h.nextInt(16) + 8;
++            l1 = this.h.nextInt(256);
++            i2 = this.h.nextInt(16) + 8;
++            (new WorldGenLakes(Blocks.WATER)).generate(this.m, this.h, blockposition.a(k1, l1, i2));
++        }
++
++        if (!flag && this.h.nextInt(this.r.D / 10) == 0 && this.r.C) {
++            k1 = this.h.nextInt(16) + 8;
++            l1 = this.h.nextInt(this.h.nextInt(248) + 8);
++            i2 = this.h.nextInt(16) + 8;
++            if (l1 < this.m.F() || this.h.nextInt(this.r.D / 8) == 0) {
++                (new WorldGenLakes(Blocks.LAVA)).generate(this.m, this.h, blockposition.a(k1, l1, i2));
++            }
++        }
++
++        if (this.r.s) {
++            for (k1 = 0; k1 < this.r.t; ++k1) {
++                l1 = this.h.nextInt(16) + 8;
++                i2 = this.h.nextInt(256);
++                int j2 = this.h.nextInt(16) + 8;
++
++                (new WorldGenDungeons()).generate(this.m, this.h, blockposition.a(l1, i2, j2));
++            }
++        }
++
++        biomebase.a(this.m, this.h, new BlockPosition(k, 0, l));
++        SpawnerCreature.a(this.m, biomebase, k + 8, l + 8, 16, 16, this.h);
++        blockposition = blockposition.a(8, 0, 8);
++
++        for (k1 = 0; k1 < 16; ++k1) {
++            for (l1 = 0; l1 < 16; ++l1) {
++                BlockPosition blockposition1 = this.m.q(blockposition.a(k1, 0, l1));
++                BlockPosition blockposition2 = blockposition1.down();
++
++                if (this.m.v(blockposition2)) {
++                    this.m.setTypeAndData(blockposition2, Blocks.ICE.getBlockData(), 2);
++                }
++
++                if (this.m.f(blockposition1, true)) {
++                    this.m.setTypeAndData(blockposition1, Blocks.SNOW_LAYER.getBlockData(), 2);
++                }
++            }
++        }
++
++        BlockFalling.instaFall = false;
++    }
++
++    public boolean a(IChunkProvider ichunkprovider, Chunk chunk, int i, int j) {
++        boolean flag = false;
++
++        if (this.r.y && this.n && chunk.w() < 3600L) {
++            flag |= this.A.a(this.m, this.h, new ChunkCoordIntPair(i, j));
++        }
++
++        return flag;
++    }
++
++    public boolean saveChunks(boolean flag, IProgressUpdate iprogressupdate) {
++        return true;
++    }
++
++    public void c() {}
++
++    public boolean unloadChunks() {
++        return false;
++    }
++
++    public boolean canSave() {
++        return true;
++    }
++
++    public String getName() {
++        return "RandomLevelSource";
++    }
++
++    public List<BiomeBase.BiomeMeta> getMobsFor(EnumCreatureType enumcreaturetype, BlockPosition blockposition) {
++        BiomeBase biomebase = this.m.getBiome(blockposition);
++
++        if (this.n) {
++            if (enumcreaturetype == EnumCreatureType.MONSTER && this.y.a(blockposition)) {
++                return this.y.b();
++            }
++
++            if (enumcreaturetype == EnumCreatureType.MONSTER && this.r.y && this.A.a(this.m, blockposition)) {
++                return this.A.b();
++            }
++        }
++
++        return biomebase.getMobs(enumcreaturetype);
++    }
++
++    public BlockPosition findNearestMapFeature(World world, String s, BlockPosition blockposition) {
++        return "Stronghold".equals(s) && this.v != null ? this.v.getNearestGeneratedFeature(world, blockposition) : null;
++    }
++
++    public int getLoadedChunks() {
++        return 0;
++    }
++
++    public void recreateStructures(Chunk chunk, int i, int j) {
++        if (this.r.w && this.n) {
++            this.x.a(this, this.m, i, j, (ChunkSnapshot) null);
++        }
++
++        if (this.r.v && this.n) {
++            this.w.a(this, this.m, i, j, (ChunkSnapshot) null);
++        }
++
++        if (this.r.u && this.n) {
++            this.v.a(this, this.m, i, j, (ChunkSnapshot) null);
++        }
++
++        if (this.r.x && this.n) {
++            this.y.a(this, this.m, i, j, (ChunkSnapshot) null);
++        }
++
++        if (this.r.y && this.n) {
++            this.A.a(this, this.m, i, j, (ChunkSnapshot) null);
++        }
++
++    }
++
++    public Chunk getChunkAt(BlockPosition blockposition) {
++        return this.getOrCreateChunk(blockposition.getX() >> 4, blockposition.getZ() >> 4);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderHell.java b/src/main/java/net/minecraft/server/ChunkProviderHell.java
+new file mode 100644
+index 0000000..2f01bbf
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/ChunkProviderHell.java
+@@ -0,0 +1,393 @@
++package net.minecraft.server;
++
++import java.util.List;
++import java.util.Random;
++
++public class ChunkProviderHell implements IChunkProvider {
++
++    private final World h;
++    private final boolean i;
++    private final Random j;
++    private double[] k = new double[256];
++    private double[] l = new double[256];
++    private double[] m = new double[256];
++    private double[] n;
++    private final NoiseGeneratorOctaves o;
++    private final NoiseGeneratorOctaves p;
++    private final NoiseGeneratorOctaves q;
++    private final NoiseGeneratorOctaves r;
++    private final NoiseGeneratorOctaves s;
++    public final NoiseGeneratorOctaves a;
++    public final NoiseGeneratorOctaves b;
++    private final WorldGenFire t = new WorldGenFire();
++    private final WorldGenLightStone1 u = new WorldGenLightStone1();
++    private final WorldGenLightStone2 v = new WorldGenLightStone2();
++    private final WorldGenerator w;
++    private final WorldGenHellLava x;
++    private final WorldGenHellLava y;
++    private final WorldGenMushrooms z;
++    private final WorldGenMushrooms A;
++    private final WorldGenNether B;
++    private final WorldGenBase C;
++    double[] c;
++    double[] d;
++    double[] e;
++    double[] f;
++    double[] g;
++
++    public ChunkProviderHell(World world, boolean flag, long i) {
++        this.w = new WorldGenMinable(Blocks.QUARTZ_ORE.getBlockData(), 14, BlockPredicate.a(Blocks.NETHERRACK));
++        this.x = new WorldGenHellLava(Blocks.FLOWING_LAVA, true);
++        this.y = new WorldGenHellLava(Blocks.FLOWING_LAVA, false);
++        this.z = new WorldGenMushrooms(Blocks.BROWN_MUSHROOM);
++        this.A = new WorldGenMushrooms(Blocks.RED_MUSHROOM);
++        this.B = new WorldGenNether();
++        this.C = new WorldGenCavesHell();
++        this.h = world;
++        this.i = flag;
++        this.j = new Random(i);
++        this.o = new NoiseGeneratorOctaves(this.j, 16);
++        this.p = new NoiseGeneratorOctaves(this.j, 16);
++        this.q = new NoiseGeneratorOctaves(this.j, 8);
++        this.r = new NoiseGeneratorOctaves(this.j, 4);
++        this.s = new NoiseGeneratorOctaves(this.j, 4);
++        this.a = new NoiseGeneratorOctaves(this.j, 10);
++        this.b = new NoiseGeneratorOctaves(this.j, 16);
++        world.b(63);
++    }
++
++    public void a(int i, int j, ChunkSnapshot chunksnapshot) {
++        byte b0 = 4;
++        int k = this.h.F() / 2 + 1;
++        int l = b0 + 1;
++        byte b1 = 17;
++        int i1 = b0 + 1;
++
++        this.n = this.a(this.n, i * b0, 0, j * b0, l, b1, i1);
++
++        for (int j1 = 0; j1 < b0; ++j1) {
++            for (int k1 = 0; k1 < b0; ++k1) {
++                for (int l1 = 0; l1 < 16; ++l1) {
++                    double d0 = 0.125D;
++                    double d1 = this.n[((j1 + 0) * i1 + k1 + 0) * b1 + l1 + 0];
++                    double d2 = this.n[((j1 + 0) * i1 + k1 + 1) * b1 + l1 + 0];
++                    double d3 = this.n[((j1 + 1) * i1 + k1 + 0) * b1 + l1 + 0];
++                    double d4 = this.n[((j1 + 1) * i1 + k1 + 1) * b1 + l1 + 0];
++                    double d5 = (this.n[((j1 + 0) * i1 + k1 + 0) * b1 + l1 + 1] - d1) * d0;
++                    double d6 = (this.n[((j1 + 0) * i1 + k1 + 1) * b1 + l1 + 1] - d2) * d0;
++                    double d7 = (this.n[((j1 + 1) * i1 + k1 + 0) * b1 + l1 + 1] - d3) * d0;
++                    double d8 = (this.n[((j1 + 1) * i1 + k1 + 1) * b1 + l1 + 1] - d4) * d0;
++
++                    for (int i2 = 0; i2 < 8; ++i2) {
++                        double d9 = 0.25D;
++                        double d10 = d1;
++                        double d11 = d2;
++                        double d12 = (d3 - d1) * d9;
++                        double d13 = (d4 - d2) * d9;
++
++                        for (int j2 = 0; j2 < 4; ++j2) {
++                            double d14 = 0.25D;
++                            double d15 = d10;
++                            double d16 = (d11 - d10) * d14;
++
++                            for (int k2 = 0; k2 < 4; ++k2) {
++                                IBlockData iblockdata = null;
++
++                                if (l1 * 8 + i2 < k) {
++                                    iblockdata = Blocks.LAVA.getBlockData();
++                                }
++
++                                if (d15 > 0.0D) {
++                                    iblockdata = Blocks.NETHERRACK.getBlockData();
++                                }
++
++                                int l2 = j2 + j1 * 4;
++                                int i3 = i2 + l1 * 8;
++                                int j3 = k2 + k1 * 4;
++
++                                chunksnapshot.a(l2, i3, j3, iblockdata);
++                                d15 += d16;
++                            }
++
++                            d10 += d12;
++                            d11 += d13;
++                        }
++
++                        d1 += d5;
++                        d2 += d6;
++                        d3 += d7;
++                        d4 += d8;
++                    }
++                }
++            }
++        }
++
++    }
++
++    public void b(int i, int j, ChunkSnapshot chunksnapshot) {
++        int k = this.h.F() + 1;
++        double d0 = 0.03125D;
++
++        this.k = this.r.a(this.k, i * 16, j * 16, 0, 16, 16, 1, d0, d0, 1.0D);
++        this.l = this.r.a(this.l, i * 16, 109, j * 16, 16, 1, 16, d0, 1.0D, d0);
++        this.m = this.s.a(this.m, i * 16, j * 16, 0, 16, 16, 1, d0 * 2.0D, d0 * 2.0D, d0 * 2.0D);
++
++        for (int l = 0; l < 16; ++l) {
++            for (int i1 = 0; i1 < 16; ++i1) {
++                boolean flag = this.k[l + i1 * 16] + this.j.nextDouble() * 0.2D > 0.0D;
++                boolean flag1 = this.l[l + i1 * 16] + this.j.nextDouble() * 0.2D > 0.0D;
++                int j1 = (int) (this.m[l + i1 * 16] / 3.0D + 3.0D + this.j.nextDouble() * 0.25D);
++                int k1 = -1;
++                IBlockData iblockdata = Blocks.NETHERRACK.getBlockData();
++                IBlockData iblockdata1 = Blocks.NETHERRACK.getBlockData();
++
++                for (int l1 = 127; l1 >= 0; --l1) {
++                    if (l1 < 127 - this.j.nextInt(5) && l1 > this.j.nextInt(5)) {
++                        IBlockData iblockdata2 = chunksnapshot.a(i1, l1, l);
++
++                        if (iblockdata2.getBlock() != null && iblockdata2.getBlock().getMaterial() != Material.AIR) {
++                            if (iblockdata2.getBlock() == Blocks.NETHERRACK) {
++                                if (k1 == -1) {
++                                    if (j1 <= 0) {
++                                        iblockdata = null;
++                                        iblockdata1 = Blocks.NETHERRACK.getBlockData();
++                                    } else if (l1 >= k - 4 && l1 <= k + 1) {
++                                        iblockdata = Blocks.NETHERRACK.getBlockData();
++                                        iblockdata1 = Blocks.NETHERRACK.getBlockData();
++                                        if (flag1) {
++                                            iblockdata = Blocks.GRAVEL.getBlockData();
++                                            iblockdata1 = Blocks.NETHERRACK.getBlockData();
++                                        }
++
++                                        if (flag) {
++                                            iblockdata = Blocks.SOUL_SAND.getBlockData();
++                                            iblockdata1 = Blocks.SOUL_SAND.getBlockData();
++                                        }
++                                    }
++
++                                    if (l1 < k && (iblockdata == null || iblockdata.getBlock().getMaterial() == Material.AIR)) {
++                                        iblockdata = Blocks.LAVA.getBlockData();
++                                    }
++
++                                    k1 = j1;
++                                    if (l1 >= k - 1) {
++                                        chunksnapshot.a(i1, l1, l, iblockdata);
++                                    } else {
++                                        chunksnapshot.a(i1, l1, l, iblockdata1);
++                                    }
++                                } else if (k1 > 0) {
++                                    --k1;
++                                    chunksnapshot.a(i1, l1, l, iblockdata1);
++                                }
++                            }
++                        } else {
++                            k1 = -1;
++                        }
++                    } else {
++                        chunksnapshot.a(i1, l1, l, Blocks.BEDROCK.getBlockData());
++                    }
++                }
++            }
++        }
++
++    }
++
++    public Chunk getOrCreateChunk(int i, int j) {
++        this.j.setSeed((long) i * 341873128712L + (long) j * 132897987541L);
++        ChunkSnapshot chunksnapshot = new ChunkSnapshot();
++
++        this.a(i, j, chunksnapshot);
++        this.b(i, j, chunksnapshot);
++        this.C.a(this, this.h, i, j, chunksnapshot);
++        if (this.i) {
++            this.B.a(this, this.h, i, j, chunksnapshot);
++        }
++
++        Chunk chunk = new Chunk(this.h, chunksnapshot, i, j);
++        BiomeBase[] abiomebase = this.h.getWorldChunkManager().getBiomeBlock((BiomeBase[]) null, i * 16, j * 16, 16, 16);
++        byte[] abyte = chunk.getBiomeIndex();
++
++        for (int k = 0; k < abyte.length; ++k) {
++            abyte[k] = (byte) abiomebase[k].id;
++        }
++
++        chunk.l();
++        return chunk;
++    }
++
++    private double[] a(double[] adouble, int i, int j, int k, int l, int i1, int j1) {
++        if (adouble == null) {
++            adouble = new double[l * i1 * j1];
++        }
++
++        double d0 = 684.412D;
++        double d1 = 2053.236D;
++
++        this.f = this.a.a(this.f, i, j, k, l, 1, j1, 1.0D, 0.0D, 1.0D);
++        this.g = this.b.a(this.g, i, j, k, l, 1, j1, 100.0D, 0.0D, 100.0D);
++        this.c = this.q.a(this.c, i, j, k, l, i1, j1, d0 / 80.0D, d1 / 60.0D, d0 / 80.0D);
++        this.d = this.o.a(this.d, i, j, k, l, i1, j1, d0, d1, d0);
++        this.e = this.p.a(this.e, i, j, k, l, i1, j1, d0, d1, d0);
++        int k1 = 0;
++        double[] adouble1 = new double[i1];
++
++        int l1;
++
++        for (l1 = 0; l1 < i1; ++l1) {
++            adouble1[l1] = Math.cos((double) l1 * 3.141592653589793D * 6.0D / (double) i1) * 2.0D;
++            double d2 = (double) l1;
++
++            if (l1 > i1 / 2) {
++                d2 = (double) (i1 - 1 - l1);
++            }
++
++            if (d2 < 4.0D) {
++                d2 = 4.0D - d2;
++                adouble1[l1] -= d2 * d2 * d2 * 10.0D;
++            }
++        }
++
++        for (l1 = 0; l1 < l; ++l1) {
++            for (int i2 = 0; i2 < j1; ++i2) {
++                double d3 = 0.0D;
++
++                for (int j2 = 0; j2 < i1; ++j2) {
++                    double d4 = 0.0D;
++                    double d5 = adouble1[j2];
++                    double d6 = this.d[k1] / 512.0D;
++                    double d7 = this.e[k1] / 512.0D;
++                    double d8 = (this.c[k1] / 10.0D + 1.0D) / 2.0D;
++
++                    if (d8 < 0.0D) {
++                        d4 = d6;
++                    } else if (d8 > 1.0D) {
++                        d4 = d7;
++                    } else {
++                        d4 = d6 + (d7 - d6) * d8;
++                    }
++
++                    d4 -= d5;
++                    double d9;
++
++                    if (j2 > i1 - 4) {
++                        d9 = (double) ((float) (j2 - (i1 - 4)) / 3.0F);
++                        d4 = d4 * (1.0D - d9) + -10.0D * d9;
++                    }
++
++                    if ((double) j2 < d3) {
++                        d9 = (d3 - (double) j2) / 4.0D;
++                        d9 = MathHelper.a(d9, 0.0D, 1.0D);
++                        d4 = d4 * (1.0D - d9) + -10.0D * d9;
++                    }
++
++                    adouble[k1] = d4;
++                    ++k1;
++                }
++            }
++        }
++
++        return adouble;
++    }
++
++    public boolean isChunkLoaded(int i, int j) {
++        return true;
++    }
++
++    public void getChunkAt(IChunkProvider ichunkprovider, int i, int j) {
++        BlockFalling.instaFall = true;
++        BlockPosition blockposition = new BlockPosition(i * 16, 0, j * 16);
++        ChunkCoordIntPair chunkcoordintpair = new ChunkCoordIntPair(i, j);
++
++        this.B.a(this.h, this.j, chunkcoordintpair);
++
++        int k;
++
++        for (k = 0; k < 8; ++k) {
++            this.y.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(120) + 4, this.j.nextInt(16) + 8));
++        }
++
++        for (k = 0; k < this.j.nextInt(this.j.nextInt(10) + 1) + 1; ++k) {
++            this.t.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(120) + 4, this.j.nextInt(16) + 8));
++        }
++
++        for (k = 0; k < this.j.nextInt(this.j.nextInt(10) + 1); ++k) {
++            this.u.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(120) + 4, this.j.nextInt(16) + 8));
++        }
++
++        for (k = 0; k < 10; ++k) {
++            this.v.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(128), this.j.nextInt(16) + 8));
++        }
++
++        if (this.j.nextBoolean()) {
++            this.z.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(128), this.j.nextInt(16) + 8));
++        }
++
++        if (this.j.nextBoolean()) {
++            this.A.generate(this.h, this.j, blockposition.a(this.j.nextInt(16) + 8, this.j.nextInt(128), this.j.nextInt(16) + 8));
++        }
++
++        for (k = 0; k < 16; ++k) {
++            this.w.generate(this.h, this.j, blockposition.a(this.j.nextInt(16), this.j.nextInt(108) + 10, this.j.nextInt(16)));
++        }
++
++        for (k = 0; k < 16; ++k) {
++            this.x.generate(this.h, this.j, blockposition.a(this.j.nextInt(16), this.j.nextInt(108) + 10, this.j.nextInt(16)));
++        }
++
++        BlockFalling.instaFall = false;
++    }
++
++    public boolean a(IChunkProvider ichunkprovider, Chunk chunk, int i, int j) {
++        return false;
++    }
++
++    public boolean saveChunks(boolean flag, IProgressUpdate iprogressupdate) {
++        return true;
++    }
++
++    public void c() {}
++
++    public boolean unloadChunks() {
++        return false;
++    }
++
++    public boolean canSave() {
++        return true;
++    }
++
++    public String getName() {
++        return "HellRandomLevelSource";
++    }
++
++    public List<BiomeBase.BiomeMeta> getMobsFor(EnumCreatureType enumcreaturetype, BlockPosition blockposition) {
++        if (enumcreaturetype == EnumCreatureType.MONSTER) {
++            if (this.B.b(blockposition)) {
++                return this.B.b();
++            }
++
++            if (this.B.a(this.h, blockposition) && this.h.getType(blockposition.down()).getBlock() == Blocks.NETHER_BRICK) {
++                return this.B.b();
++            }
++        }
++
++        BiomeBase biomebase = this.h.getBiome(blockposition);
++
++        return biomebase.getMobs(enumcreaturetype);
++    }
++
++    public BlockPosition findNearestMapFeature(World world, String s, BlockPosition blockposition) {
++        return null;
++    }
++
++    public int getLoadedChunks() {
++        return 0;
++    }
++
++    public void recreateStructures(Chunk chunk, int i, int j) {
++        this.B.a(this, this.h, i, j, (ChunkSnapshot) null);
++    }
++
++    public Chunk getChunkAt(BlockPosition blockposition) {
++        return this.getOrCreateChunk(blockposition.getX() >> 4, blockposition.getZ() >> 4);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java b/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java
+new file mode 100644
+index 0000000..4f2c865
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java
+@@ -0,0 +1,272 @@
++package net.minecraft.server;
++
++import java.util.List;
++import java.util.Random;
++
++public class ChunkProviderTheEnd implements IChunkProvider {
++
++    private Random h;
++    private NoiseGeneratorOctaves i;
++    private NoiseGeneratorOctaves j;
++    private NoiseGeneratorOctaves k;
++    public NoiseGeneratorOctaves a;
++    public NoiseGeneratorOctaves b;
++    private World l;
++    private double[] m;
++    private BiomeBase[] n;
++    double[] c;
++    double[] d;
++    double[] e;
++    double[] f;
++    double[] g;
++
++    public ChunkProviderTheEnd(World world, long i) {
++        this.l = world;
++        this.h = new Random(i);
++        this.i = new NoiseGeneratorOctaves(this.h, 16);
++        this.j = new NoiseGeneratorOctaves(this.h, 16);
++        this.k = new NoiseGeneratorOctaves(this.h, 8);
++        this.a = new NoiseGeneratorOctaves(this.h, 10);
++        this.b = new NoiseGeneratorOctaves(this.h, 16);
++    }
++
++    public void a(int i, int j, ChunkSnapshot chunksnapshot) {
++        byte b0 = 2;
++        int k = b0 + 1;
++        byte b1 = 33;
++        int l = b0 + 1;
++
++        this.m = this.a(this.m, i * b0, 0, j * b0, k, b1, l);
++
++        for (int i1 = 0; i1 < b0; ++i1) {
++            for (int j1 = 0; j1 < b0; ++j1) {
++                for (int k1 = 0; k1 < 32; ++k1) {
++                    double d0 = 0.25D;
++                    double d1 = this.m[((i1 + 0) * l + j1 + 0) * b1 + k1 + 0];
++                    double d2 = this.m[((i1 + 0) * l + j1 + 1) * b1 + k1 + 0];
++                    double d3 = this.m[((i1 + 1) * l + j1 + 0) * b1 + k1 + 0];
++                    double d4 = this.m[((i1 + 1) * l + j1 + 1) * b1 + k1 + 0];
++                    double d5 = (this.m[((i1 + 0) * l + j1 + 0) * b1 + k1 + 1] - d1) * d0;
++                    double d6 = (this.m[((i1 + 0) * l + j1 + 1) * b1 + k1 + 1] - d2) * d0;
++                    double d7 = (this.m[((i1 + 1) * l + j1 + 0) * b1 + k1 + 1] - d3) * d0;
++                    double d8 = (this.m[((i1 + 1) * l + j1 + 1) * b1 + k1 + 1] - d4) * d0;
++
++                    for (int l1 = 0; l1 < 4; ++l1) {
++                        double d9 = 0.125D;
++                        double d10 = d1;
++                        double d11 = d2;
++                        double d12 = (d3 - d1) * d9;
++                        double d13 = (d4 - d2) * d9;
++
++                        for (int i2 = 0; i2 < 8; ++i2) {
++                            double d14 = 0.125D;
++                            double d15 = d10;
++                            double d16 = (d11 - d10) * d14;
++
++                            for (int j2 = 0; j2 < 8; ++j2) {
++                                IBlockData iblockdata = null;
++
++                                if (d15 > 0.0D) {
++                                    iblockdata = Blocks.END_STONE.getBlockData();
++                                }
++
++                                int k2 = i2 + i1 * 8;
++                                int l2 = l1 + k1 * 4;
++                                int i3 = j2 + j1 * 8;
++
++                                chunksnapshot.a(k2, l2, i3, iblockdata);
++                                d15 += d16;
++                            }
++
++                            d10 += d12;
++                            d11 += d13;
++                        }
++
++                        d1 += d5;
++                        d2 += d6;
++                        d3 += d7;
++                        d4 += d8;
++                    }
++                }
++            }
++        }
++
++    }
++
++    public void a(ChunkSnapshot chunksnapshot) {
++        for (int i = 0; i < 16; ++i) {
++            for (int j = 0; j < 16; ++j) {
++                byte b0 = 1;
++                int k = -1;
++                IBlockData iblockdata = Blocks.END_STONE.getBlockData();
++                IBlockData iblockdata1 = Blocks.END_STONE.getBlockData();
++
++                for (int l = 127; l >= 0; --l) {
++                    IBlockData iblockdata2 = chunksnapshot.a(i, l, j);
++
++                    if (iblockdata2.getBlock().getMaterial() == Material.AIR) {
++                        k = -1;
++                    } else if (iblockdata2.getBlock() == Blocks.STONE) {
++                        if (k == -1) {
++                            if (b0 <= 0) {
++                                iblockdata = Blocks.AIR.getBlockData();
++                                iblockdata1 = Blocks.END_STONE.getBlockData();
++                            }
++
++                            k = b0;
++                            if (l >= 0) {
++                                chunksnapshot.a(i, l, j, iblockdata);
++                            } else {
++                                chunksnapshot.a(i, l, j, iblockdata1);
++                            }
++                        } else if (k > 0) {
++                            --k;
++                            chunksnapshot.a(i, l, j, iblockdata1);
++                        }
++                    }
++                }
++            }
++        }
++
++    }
++
++    public Chunk getOrCreateChunk(int i, int j) {
++        this.h.setSeed((long) i * 341873128712L + (long) j * 132897987541L);
++        ChunkSnapshot chunksnapshot = new ChunkSnapshot();
++
++        this.n = this.l.getWorldChunkManager().getBiomeBlock(this.n, i * 16, j * 16, 16, 16);
++        this.a(i, j, chunksnapshot);
++        this.a(chunksnapshot);
++        Chunk chunk = new Chunk(this.l, chunksnapshot, i, j);
++        byte[] abyte = chunk.getBiomeIndex();
++
++        for (int k = 0; k < abyte.length; ++k) {
++            abyte[k] = (byte) this.n[k].id;
++        }
++
++        chunk.initLighting();
++        return chunk;
++    }
++
++    private double[] a(double[] adouble, int i, int j, int k, int l, int i1, int j1) {
++        if (adouble == null) {
++            adouble = new double[l * i1 * j1];
++        }
++
++        double d0 = 684.412D;
++        double d1 = 684.412D;
++
++        this.f = this.a.a(this.f, i, k, l, j1, 1.121D, 1.121D, 0.5D);
++        this.g = this.b.a(this.g, i, k, l, j1, 200.0D, 200.0D, 0.5D);
++        d0 *= 2.0D;
++        this.c = this.k.a(this.c, i, j, k, l, i1, j1, d0 / 80.0D, d1 / 160.0D, d0 / 80.0D);
++        this.d = this.i.a(this.d, i, j, k, l, i1, j1, d0, d1, d0);
++        this.e = this.j.a(this.e, i, j, k, l, i1, j1, d0, d1, d0);
++        int k1 = 0;
++
++        for (int l1 = 0; l1 < l; ++l1) {
++            for (int i2 = 0; i2 < j1; ++i2) {
++                float f = (float) (l1 + i) / 1.0F;
++                float f1 = (float) (i2 + k) / 1.0F;
++                float f2 = 100.0F - MathHelper.c(f * f + f1 * f1) * 8.0F;
++
++                if (f2 > 80.0F) {
++                    f2 = 80.0F;
++                }
++
++                if (f2 < -100.0F) {
++                    f2 = -100.0F;
++                }
++
++                for (int j2 = 0; j2 < i1; ++j2) {
++                    double d2 = 0.0D;
++                    double d3 = this.d[k1] / 512.0D;
++                    double d4 = this.e[k1] / 512.0D;
++                    double d5 = (this.c[k1] / 10.0D + 1.0D) / 2.0D;
++
++                    if (d5 < 0.0D) {
++                        d2 = d3;
++                    } else if (d5 > 1.0D) {
++                        d2 = d4;
++                    } else {
++                        d2 = d3 + (d4 - d3) * d5;
++                    }
++
++                    d2 -= 8.0D;
++                    d2 += (double) f2;
++                    byte b0 = 2;
++                    double d6;
++
++                    if (j2 > i1 / 2 - b0) {
++                        d6 = (double) ((float) (j2 - (i1 / 2 - b0)) / 64.0F);
++                        d6 = MathHelper.a(d6, 0.0D, 1.0D);
++                        d2 = d2 * (1.0D - d6) + -3000.0D * d6;
++                    }
++
++                    b0 = 8;
++                    if (j2 < b0) {
++                        d6 = (double) ((float) (b0 - j2) / ((float) b0 - 1.0F));
++                        d2 = d2 * (1.0D - d6) + -30.0D * d6;
++                    }
++
++                    adouble[k1] = d2;
++                    ++k1;
++                }
++            }
++        }
++
++        return adouble;
++    }
++
++    public boolean isChunkLoaded(int i, int j) {
++        return true;
++    }
++
++    public void getChunkAt(IChunkProvider ichunkprovider, int i, int j) {
++        BlockFalling.instaFall = true;
++        BlockPosition blockposition = new BlockPosition(i * 16, 0, j * 16);
++
++        this.l.getBiome(blockposition.a(16, 0, 16)).a(this.l, this.l.random, blockposition);
++        BlockFalling.instaFall = false;
++    }
++
++    public boolean a(IChunkProvider ichunkprovider, Chunk chunk, int i, int j) {
++        return false;
++    }
++
++    public boolean saveChunks(boolean flag, IProgressUpdate iprogressupdate) {
++        return true;
++    }
++
++    public void c() {}
++
++    public boolean unloadChunks() {
++        return false;
++    }
++
++    public boolean canSave() {
++        return true;
++    }
++
++    public String getName() {
++        return "RandomLevelSource";
++    }
++
++    public List<BiomeBase.BiomeMeta> getMobsFor(EnumCreatureType enumcreaturetype, BlockPosition blockposition) {
++        return this.l.getBiome(blockposition).getMobs(enumcreaturetype);
++    }
++
++    public BlockPosition findNearestMapFeature(World world, String s, BlockPosition blockposition) {
++        return null;
++    }
++
++    public int getLoadedChunks() {
++        return 0;
++    }
++
++    public void recreateStructures(Chunk chunk, int i, int j) {}
++
++    public Chunk getChunkAt(BlockPosition blockposition) {
++        return this.getOrCreateChunk(blockposition.getX() >> 4, blockposition.getZ() >> 4);
++    }
++}
+-- 
+1.8.3.msysgit.0
+
