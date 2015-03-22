@@ -1,6 +1,6 @@
-From b87c0e1221181456389fce57008202418c9cf4cd Mon Sep 17 00:00:00 2001
+From e5ee4103668a9688cc9fb9371c5284a2e25c9381 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sun, 22 Mar 2015 03:09:09 +0100
+Date: Sun, 22 Mar 2015 04:13:27 +0100
 Subject: [PATCH] MinetickMod Config and Profiler
 
 
@@ -684,18 +684,19 @@ index 6fd1238..66db73b 100644
                  DedicatedServer.LOGGER.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
                  DedicatedServer.LOGGER.warn("The server will make no attempt to authenticate usernames. Beware.");
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 2f896f6..d7c173a 100644
+index 2f896f6..c46d151 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -55,6 +55,7 @@ import org.bukkit.event.world.WorldSaveEvent;
+@@ -55,6 +55,8 @@ import org.bukkit.event.world.WorldSaveEvent;
  // MinetickMod start
  import de.minetick.AutoSaveJob;
  import de.minetick.AutoSaveJob.JobDetail;
 +import de.minetick.MinetickMod;
++import de.minetick.profiler.Profile;
  
  import java.util.LinkedList;
  // MinetickMod end
-@@ -129,6 +130,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -129,6 +131,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      // CraftBukkit end
  
      // MinetickMod start
@@ -703,7 +704,7 @@ index 2f896f6..d7c173a 100644
      protected boolean snooperEnabled;
      private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
      private int autoSaveDelay = 0;
-@@ -164,6 +166,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -164,6 +167,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              this.autoSaveOrdered = false;
          }
      }
@@ -716,7 +717,7 @@ index 2f896f6..d7c173a 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -523,6 +531,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -523,6 +532,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  this.n.e();
              }
  
@@ -724,7 +725,7 @@ index 2f896f6..d7c173a 100644
          }
      }
  
-@@ -661,6 +670,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -661,6 +671,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      protected void z() throws ExceptionWorldConflict { // CraftBukkit - added throws
          long i = System.nanoTime();
  
@@ -737,7 +738,7 @@ index 2f896f6..d7c173a 100644
          ++this.ticks;
          if (this.T) {
              this.T = false;
-@@ -695,10 +710,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -695,10 +711,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          if(this.autoSaveOrdered) {
              this.autoSaveNextWorld();
          }
@@ -751,20 +752,20 @@ index 2f896f6..d7c173a 100644
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
          if (this.snooperEnabled && !this.n.d() && this.ticks > 100) { // MinetickMod
-@@ -711,6 +728,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -711,6 +729,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          this.methodProfiler.b();
          this.methodProfiler.b();
 +
 +        // MinetickMod start
 +        Profile p = this.minetickMod.getProfiler().stop("GameLogicLoop");
-+        p.setCurrentPlayerNumber(this.B());
++        p.setCurrentPlayerNumber(this.H());
 +        this.minetickMod.getProfiler().newTick();
 +        // MinetickMod end
      }
  
      public void A() {
-@@ -791,6 +814,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -791,6 +815,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          }
  
          // MinetickMod start
