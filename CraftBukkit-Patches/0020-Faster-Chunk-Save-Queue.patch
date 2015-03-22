@@ -1,11 +1,11 @@
-From 1714763b04289890fad903c5f08788c59683a0b3 Mon Sep 17 00:00:00 2001
+From 431beb2c943966f0aaf81c9e4f6d40c09c355813 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sun, 22 Mar 2015 01:16:23 +0100
+Date: Sun, 22 Mar 2015 03:45:21 +0100
 Subject: [PATCH] Faster Chunk Save Queue
 
 
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 24cd6ff..7a27b5e 100644
+index 24cd6ff..73f4fd8 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -16,8 +16,7 @@ import org.apache.logging.log4j.Logger;
@@ -14,7 +14,7 @@ index 24cd6ff..7a27b5e 100644
      private static final Logger a = LogManager.getLogger();
 -    private List<ChunkRegionLoader.PendingChunkToSave> b = Lists.newArrayList();
 -    private Set<ChunkCoordIntPair> c = Sets.newHashSet();
-+    private LinkedHashMap<ChunkCoordIntPair, PendingChunkToSave> map = new java.util.LinkedHashMap<ChunkCoordIntPair, PendingChunkToSave>(); // MinetickMod
++    private java.util.LinkedHashMap<ChunkCoordIntPair, PendingChunkToSave> map = new java.util.LinkedHashMap<ChunkCoordIntPair, PendingChunkToSave>(); // MinetickMod
      private Object d = new Object();
      private final File e;
  
