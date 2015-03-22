@@ -1,0 +1,102 @@
+From aafab6e7cc0261da5d2de935fedc61627cceaf0a Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sun, 22 Mar 2015 12:11:07 +0100
+Subject: [PATCH] Readd Chunk Access Cache in World
+
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index e1747a5..eef5ed9 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -43,6 +43,18 @@ public class Chunk {
+     private int v;
+     private ConcurrentLinkedQueue<BlockPosition> w;
+ 
++    // MinetickMod start
++    private boolean unloaded = false;
++
++    public boolean wasUnloaded() {
++        return this.unloaded;
++    }
++
++    public void markAsUnloaded() {
++        this.unloaded = true;
++    }
++    // MinetickMod end
++
+     // CraftBukkit start - Neighbor loaded cache for chunk lighting and entity ticking
+     private int neighbors = 0x1 << 12;
+ 
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 94f38a3..be9c02b 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -369,6 +369,7 @@ public class ChunkProviderServer implements IChunkProvider {
+                 if (!event.isCancelled()) {
+ 
+                     if (chunk != null) {
++                        chunk.markAsUnloaded(); // MinetickMod
+                         chunk.removeEntities();
+                         this.saveChunk(chunk);
+                         this.saveChunkNOP(chunk);
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index ed76c8f..ba6df79 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -170,6 +170,9 @@ public abstract class World implements IBlockAccess {
+     public boolean instaFall = false;
+     private List<Entity> dimensionChangeQueue = Collections.synchronizedList(new ArrayList<Entity>());
+     protected boolean cancelHeavyCalculations = false;
++    private Chunk dummyChunk = new EmptyChunk(this, Integer.MIN_VALUE, Integer.MIN_VALUE);
++    private Chunk lastChunkAccessed = dummyChunk;
++    final Object chunkLock = new Object();
+ 
+     public void queueEntityForDimensionChange(Entity entity) {
+         this.dimensionChangeQueue.add(entity);
+@@ -304,8 +307,30 @@ public abstract class World implements IBlockAccess {
+         return this.getChunkAt(blockposition.getX() >> 4, blockposition.getZ() >> 4);
+     }
+ 
++    // MinetickMod start
++    private void cacheLastChunkAccess(Chunk foundChunk) {
++        this.lastChunkAccessed = ((foundChunk == null || foundChunk.isEmpty()) ? this.dummyChunk : foundChunk);
++    }
++    // MinetickMod end
++
+     public Chunk getChunkAt(int i, int j) {
+-        return this.chunkProvider.getOrCreateChunk(i, j);
++        // MinetickMod start
++        Chunk last = this.lastChunkAccessed;
++        if(last.a(i,j) && !last.wasUnloaded()) {
++            return last;
++        } else {
++            Chunk result = null;
++            if(this.chunkProviderServer.isChunkLoaded(i, j)) {
++                result = this.chunkProvider.getChunkAt(i, j);
++            } else {
++                synchronized (this.chunkLock) {
++                    result = this.chunkProvider.getOrCreateChunk(i, j);
++                }
++            }
++            this.cacheLastChunkAccess(result);
++        }
++        return result;
++        // MinetickMod end
+     }
+ 
+     public boolean setTypeAndData(BlockPosition blockposition, IBlockData iblockdata, int i) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 0d80c41..9c134b9 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -184,6 +184,7 @@ public class CraftWorld implements World {
+             save = true;
+         }
+ 
++        chunk.markAsUnloaded(); // MinetickMod
+         chunk.removeEntities(); // Always remove entities - even if discarding, need to get them out of world table
+ 
+         if (save && !(chunk instanceof EmptyChunk)) {
+-- 
+1.8.3.msysgit.0
+
