@@ -1,4 +1,4 @@
-From 4cc0e2d099aa923216f412f322e899c794064783 Mon Sep 17 00:00:00 2001
+From a270196c4a193c2c2948a8b7966f7bf2faf2788f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 15:40:04 +0100
 Subject: [PATCH] Non Blocking Auto Save
@@ -69,10 +69,10 @@ index 0000000..ee15645
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/FileIOThread.java b/src/main/java/net/minecraft/server/FileIOThread.java
-index 4733f94..d2c91bd 100644
+index c54693c..e230232 100644
 --- a/src/main/java/net/minecraft/server/FileIOThread.java
 +++ b/src/main/java/net/minecraft/server/FileIOThread.java
-@@ -12,6 +12,16 @@ public class FileIOThread implements Runnable {
+@@ -14,6 +14,16 @@ public class FileIOThread implements Runnable {
      private volatile long d;
      private volatile boolean e;
  
