@@ -1,0 +1,124 @@
+From 798d703934f2f611da73496a110fa02059f0b769 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sun, 22 Mar 2015 05:13:01 +0100
+Subject: [PATCH] Async Saving of PersisentCollections
+
+
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 2d0da22..645fbce 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -1,15 +1,22 @@
+ package de.minetick;
+ 
++import java.io.File;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.io.OutputStream;
+ import java.util.Collections;
+ import java.util.LinkedList;
+ import java.util.List;
+ import java.util.concurrent.Callable;
++import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Executors;
+ import java.util.concurrent.ScheduledExecutorService;
+ import java.util.concurrent.ScheduledFuture;
+ import java.util.concurrent.TimeUnit;
+ 
+ import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.NBTCompressedStreamTools;
++import net.minecraft.server.NBTTagCompound;
+ 
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+@@ -22,6 +29,7 @@ public class MinetickMod {
+ 
+     private TickTimer tickTimerObject;
+     private int timerDelay = 45;
++    private ExecutorService nbtFileService = Executors.newCachedThreadPool(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
+     private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
+     private ScheduledFuture<Object> tickTimerTask;
+     private static MinetickMod instance;
+@@ -61,6 +69,14 @@ public class MinetickMod {
+ 
+     public void shutdown() {
+         this.timerService.shutdown();
++        this.nbtFileService.shutdown();
++        while(!this.nbtFileService.isTerminated()) {
++            try {
++                if(!this.nbtFileService.awaitTermination(3, TimeUnit.MINUTES)) {
++                    log.warn("MinetickMod is still waiting for NBT Files to be saved.");
++                }
++            } catch(InterruptedException e) {}
++        }
+     }
+ 
+     public void checkTickTime(long tickTime) {
+@@ -110,4 +126,48 @@ public class MinetickMod {
+         }
+         return emptyArray;
+     }
++
++    public static void saveNBTFileStatic(NBTTagCompound compound, File file) {
++        instance.saveNBTFile(compound, file);
++    }
++
++    public void saveNBTFile(NBTTagCompound compound, File file) {
++        this.nbtFileService.submit(new NBTFileSaver(compound, file));
++    }
++
++    private class NBTFileSaver implements Callable<Object> {
++
++        private NBTTagCompound compound;
++        private File file;
++
++        public NBTFileSaver(NBTTagCompound compound, File file) {
++            this.compound = compound;
++            this.file = file;
++        }
++
++        public Object call() {
++            FileOutputStream fileoutputstream = null;
++            try {
++                fileoutputstream = new FileOutputStream(this.file);
++                long start = System.currentTimeMillis();
++                NBTCompressedStreamTools.a(this.compound, (OutputStream) fileoutputstream);
++                long duration = System.currentTimeMillis() - start;
++                if(duration > 1000L) {
++                    log.info("Saving the file \"" + this.file.getAbsolutePath() + "\" took " + ((float)(duration/100L) / 10.0F) + " seconds.");
++                }
++            } catch (Exception e) {
++                log.error("Error \""+ e.getMessage() +"\" while saving file: " + this.file.getAbsolutePath());
++                e.printStackTrace();
++            } finally {
++                if(fileoutputstream != null) {
++                    try {
++                        fileoutputstream.close();
++                    } catch (IOException e) {}
++                }
++            }
++            this.compound = null;
++            this.file = null;
++            return null;
++        }
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/PersistentCollection.java b/src/main/java/net/minecraft/server/PersistentCollection.java
+index 4b8d548..7890079 100644
+--- a/src/main/java/net/minecraft/server/PersistentCollection.java
++++ b/src/main/java/net/minecraft/server/PersistentCollection.java
+@@ -96,10 +96,7 @@ public class PersistentCollection {
+                     NBTTagCompound nbttagcompound1 = new NBTTagCompound();
+ 
+                     nbttagcompound1.set("data", nbttagcompound);
+-                    FileOutputStream fileoutputstream = new FileOutputStream(file);
+-
+-                    NBTCompressedStreamTools.a(nbttagcompound1, (OutputStream) fileoutputstream);
+-                    fileoutputstream.close();
++                    de.minetick.MinetickMod.saveNBTFileStatic((NBTTagCompound) (nbttagcompound1.clone()), file); // MinetickMod
+                 }
+             } catch (Exception exception) {
+                 exception.printStackTrace();
+-- 
+1.8.3.msysgit.0
+
