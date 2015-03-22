@@ -1,0 +1,842 @@
+From b87c0e1221181456389fce57008202418c9cf4cd Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sun, 22 Mar 2015 03:09:09 +0100
+Subject: [PATCH] MinetickMod Config and Profiler
+
+
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+new file mode 100644
+index 0000000..2d0da22
+--- /dev/null
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -0,0 +1,113 @@
++package de.minetick;
++
++import java.util.Collections;
++import java.util.LinkedList;
++import java.util.List;
++import java.util.concurrent.Callable;
++import java.util.concurrent.Executors;
++import java.util.concurrent.ScheduledExecutorService;
++import java.util.concurrent.ScheduledFuture;
++import java.util.concurrent.TimeUnit;
++
++import net.minecraft.server.MinecraftServer;
++
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
++import org.bukkit.craftbukkit.CraftServer;
++
++import de.minetick.modcommands.TPSCommand;
++import de.minetick.profiler.Profiler;
++
++public class MinetickMod {
++
++    private TickTimer tickTimerObject;
++    private int timerDelay = 45;
++    private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
++    private ScheduledFuture<Object> tickTimerTask;
++    private static MinetickMod instance;
++    private Profiler profiler;
++    private boolean initDone = false;
++    private TickCounter tickCounterObject;
++    private List<Integer> ticksPerSecond;
++    private int ticksCounter = 0;
++    private final Logger log = LogManager.getLogger();
++
++    public MinetickMod() {
++        this.tickTimerObject = new TickTimer();
++        this.tickCounterObject = new TickCounter();
++        this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
++        this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
++        instance = this;
++    }
++
++    public void init() {
++        if(!this.initDone) {
++            this.initDone = true;
++            CraftServer craftserver = MinecraftServer.getServer().server;
++            craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
++            this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
++                    craftserver.getMinetickModProfilerWriteEnabled(),
++                    craftserver.getMinetickModProfilerWriteInterval());
++        }
++    }
++
++    public Profiler getProfiler() {
++        return this.profiler;
++    }
++
++    public static Profiler getProfilerStatic() {
++        return instance.getProfiler();
++    }
++
++    public void shutdown() {
++        this.timerService.shutdown();
++    }
++
++    public void checkTickTime(long tickTime) {
++        if(tickTime > 45000000L) {
++            if(this.timerDelay > 40) {
++                this.timerDelay--;
++            }
++        } else if(this.timerDelay < 45) {
++            this.timerDelay++;
++        }
++    }
++
++    public void startTickTimerTask() {
++        this.tickTimerTask = instance.timerService.schedule(this.tickTimerObject, this.timerDelay, TimeUnit.MILLISECONDS);
++    }
++
++    public void cancelTimerTask(boolean flag) {
++        this.tickTimerTask.cancel(false);
++    }
++
++    private class TickTimer implements Callable<Object> {
++        public Object call() {
++            MinecraftServer.getServer().cancelHeavyCalculationsForAllWorlds(true);
++            return null;
++        }
++    }
++
++    private class TickCounter implements Runnable {
++        @Override
++        public void run() {
++            ticksPerSecond.add(ticksCounter);
++            ticksCounter = 0;
++            if(ticksPerSecond.size() > 30) {
++                ticksPerSecond.remove(0);
++            }
++        }
++    }
++
++    public void increaseTickCounter() {
++        this.ticksCounter++;
++    }
++
++    public static Integer[] getTicksPerSecond() {
++        Integer[] emptyArray = new Integer[0];
++        if(instance != null) {
++            return instance.ticksPerSecond.toArray(emptyArray);
++        }
++        return emptyArray;
++    }
++}
+diff --git a/src/main/java/de/minetick/MinetickThreadFactory.java b/src/main/java/de/minetick/MinetickThreadFactory.java
+new file mode 100644
+index 0000000..4fb6363
+--- /dev/null
++++ b/src/main/java/de/minetick/MinetickThreadFactory.java
+@@ -0,0 +1,35 @@
++package de.minetick;
++
++import java.util.concurrent.Executors;
++import java.util.concurrent.ThreadFactory;
++
++public class MinetickThreadFactory implements ThreadFactory {
++
++    private int priority;
++    private int idCounter = 0;
++    private String name = "MinetickModThread";
++
++    public MinetickThreadFactory(int priority) {
++        this.priority = Math.max(priority, Thread.MIN_PRIORITY);
++        this.priority = Math.min(priority, Thread.MAX_PRIORITY);
++    }
++
++    public MinetickThreadFactory(int priority, String name) {
++        this(priority);
++        this.name = name;
++    }
++
++    public MinetickThreadFactory(String name) {
++        this(Thread.NORM_PRIORITY);
++        this.name = name;
++    }
++
++    @Override
++    public Thread newThread(Runnable runnable) {
++        Thread thread = Executors.defaultThreadFactory().newThread(runnable);
++        thread.setPriority(this.priority);
++        thread.setName(this.name + "-" + String.valueOf(idCounter));
++        idCounter++;
++        return thread;
++    }
++}
+diff --git a/src/main/java/de/minetick/modcommands/TPSCommand.java b/src/main/java/de/minetick/modcommands/TPSCommand.java
+new file mode 100644
+index 0000000..a9b0f68
+--- /dev/null
++++ b/src/main/java/de/minetick/modcommands/TPSCommand.java
+@@ -0,0 +1,79 @@
++package de.minetick.modcommands;
++
++import org.bukkit.ChatColor;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++import org.bukkit.entity.Player;
++
++import de.minetick.MinetickMod;
++
++public class TPSCommand extends Command {
++
++    private int[] steps = new int[] {18, 16, 14, 10, 0};
++    private ChatColor[] colors = new ChatColor[] {ChatColor.GREEN, ChatColor.YELLOW, ChatColor.YELLOW, ChatColor.GOLD, ChatColor.RED };
++    private StringBuilder[] builders = new StringBuilder[5];
++
++    public TPSCommand(String name) {
++        super(name);
++        this.usageMessage = "/tps";
++        this.description = "Displays the servers tick rate of the last 30 seconds";
++        for(int i = 0; i < this.builders.length; i++) {
++            this.builders[i] = new StringBuilder();
++        }
++    }
++
++    public boolean execute(CommandSender sender, String currentAlias, String[] args) {
++        Integer[] array = MinetickMod.getTicksPerSecond();
++        boolean runByPlayer = (sender instanceof Player);
++        if(array.length == 0) {
++            sender.sendMessage(ChatColor.GOLD + "TPS statistic: " + ChatColor.RESET + "No data available yet. Try again later");
++            return true;
++        }
++        for(int i = 0; i < this.builders.length; i++) {
++            this.builders[i].delete(0, this.builders[i].length());
++        }
++
++        int start = array.length - 30;
++        for(int i = start; i < array.length; i++) {
++            Integer k;
++            if(i < 0) {
++                k = 0;
++            } else {
++                k = array[i];
++            }
++            for(int j = 0; j < this.steps.length; j++) {
++                if(k > this.steps[j]) {
++                    if(runByPlayer) {
++                        this.builders[j].append(this.colors[j]);
++                        this.builders[j].append('\u2B1B');
++                        this.builders[j].append(ChatColor.RESET);
++                    } else {
++                        this.builders[j].append("#");
++                    }
++                } else {
++                    if(runByPlayer) {
++                        this.builders[j].append(ChatColor.BLACK);
++                        this.builders[j].append('\u2B1C');
++                        this.builders[j].append(ChatColor.RESET);
++                    } else {
++                        this.builders[j].append("_");
++                    }
++                }
++            }
++        }
++        ChatColor current = ChatColor.RED;
++        Integer last = array[array.length - 1];
++        for(int i = 0; i < this.steps.length; i++) {
++            if(this.steps[i] < last) {
++                current = this.colors[i];
++                break;
++            }
++        }
++        sender.sendMessage(ChatColor.GOLD + "Current TPS: " + current + last + ChatColor.GOLD + "  TPS statistic (last 30 seconds):");
++        for(int i = 0; i < this.builders.length; i++) {
++            this.builders[i].append("   >" + this.steps[i]);
++            sender.sendMessage(this.builders[i].toString());
++        }
++        return true;
++    }
++}
+diff --git a/src/main/java/de/minetick/profiler/Profile.java b/src/main/java/de/minetick/profiler/Profile.java
+new file mode 100644
+index 0000000..03515c9
+--- /dev/null
++++ b/src/main/java/de/minetick/profiler/Profile.java
+@@ -0,0 +1,271 @@
++package de.minetick.profiler;
++
++import java.io.BufferedWriter;
++import java.io.File;
++import java.io.FileWriter;
++import java.io.IOException;
++import java.text.SimpleDateFormat;
++import java.util.ArrayList;
++import java.util.Calendar;
++import java.util.Date;
++import java.util.LinkedList;
++import java.util.List;
++import java.util.logging.Level;
++import java.util.logging.Logger;
++
++public class Profile {
++
++    private ProfileCall[] records;
++    private int lastIndex;
++    private int index;
++    private File folder;
++    private File file;
++    private BufferedWriter writer;
++    private String ident;
++    private SimpleDateFormat currentTime;
++    private long startTime;
++    private long endTime;
++    protected ArrayList<String> output = new ArrayList<String>();
++
++    private long avgSum = 0L;
++    private int avgCount = 0, avgMaxCount;
++
++    private long avgTickEntitiesTime;
++
++    private boolean errorShown = false;
++
++    protected int counter;
++    protected boolean writeEnabled;
++    protected int writeStep;
++    private int avgPlayers;
++
++    public Profile(int size, String ident, int avgMaxCount, boolean writeToFile, int writeSteps) {
++        this.avgTickEntitiesTime = 0L;
++        this.ident = ident;
++        this.avgMaxCount = avgMaxCount;
++        this.writeEnabled = writeToFile;
++        this.writeStep = writeSteps;
++        this.currentTime = new SimpleDateFormat ("HH:mm:ss");
++        if(writeToFile) {
++            SimpleDateFormat df = new SimpleDateFormat ("yyyy.MM.dd_HH-mm-ss");
++            Calendar c = Calendar.getInstance();
++            int day = c.get(Calendar.DAY_OF_MONTH);
++            String d = String.valueOf(day);
++            if(d.length() < 2) {
++                d = "0" + d;
++            }
++            int month = c.get(Calendar.MONTH) + 1;
++            String m = String.valueOf(month);
++            if(m.length() < 2) {
++                m = "0" + m;
++            }
++            int year = c.get(Calendar.YEAR);
++            File path = new File("Profiler");
++            path = new File(path, year + "." + m);
++            this.folder = new File(path, d);
++            this.file = new File(this.folder, "MTProfiler_" + df.format(new Date()) + "_" + ident + ".txt");
++        }
++        this.lastIndex = 0;
++        this.index = 0;
++        this.counter = 0;
++        this.records = new ProfileCall[size*20];
++        this.startTime = 0L;
++        this.endTime = 0L;
++    }
++
++    public String getIdent() {
++        return this.ident;
++    }
++
++    public long getLastAvg() {
++        return this.avgTickEntitiesTime;
++    }
++
++    public float getLastAvgFloat() {
++        return ((float)(this.getLastAvg() / 100000L)) / 10.0F;
++    }
++
++    public int getPlayerAvg() {
++        return this.avgPlayers;
++    }
++
++    public long getRecord(int i) {
++        if(i >= 0 && i <= this.index) {
++            return this.records[index].getTime();
++        } else {
++            ProfileCall pc = this.records[this.index];
++            if(pc != null) {
++                return pc.getTime();
++            }
++        }
++        return 0L;
++    }
++
++    public void setCustomRecord(int index, long time) {
++        if(this.index < this.records.length) {
++            if(this.records[index] == null) {
++                this.records[index] = new ProfileCall();
++            }
++            this.records[index].setTime(time);
++        }
++    }
++
++    public void setCurrentPlayerNumber(int count) {
++        if(this.index < this.records.length) {
++            this.records[this.index].setPlayerNumber(count);
++        }
++    }
++
++    public void setGeneratedChunks(int count) {
++        if(this.index < this.records.length) {
++            this.records[this.index].setGeneratedChunks(count);
++        }
++    }
++
++    public void start() {
++        this.startTime = System.nanoTime();
++    }
++
++    public long stop() {
++        this.endTime = System.nanoTime();
++        long measuredTime = this.endTime - this.startTime;
++        this.avgCount++;
++        this.avgSum += measuredTime;
++        if(this.avgCount >= this.avgMaxCount) {
++            this.avgTickEntitiesTime = (this.avgSum / this.avgCount);
++            this.avgSum = 0L;
++            this.avgCount = 0;
++        }
++        if(this.index < this.records.length) {
++            if(this.records[this.index] == null) {
++                this.records[this.index] = new ProfileCall();
++            }
++            this.records[this.index].add(measuredTime);
++            return this.records[this.index].getTime();
++        }
++        return 0L;
++    }
++
++    public void newTick(int index, int cnt) {
++        this.lastIndex = this.index;
++        this.index = index;
++        if(cnt > this.counter) {
++            this.counter = cnt;
++
++            this.calcRecord(this.writeEnabled);
++            if(this.writeEnabled) {
++                if((this.counter % this.writeStep) == 0) {
++                    this.writeToFile();
++                }
++            }
++        }
++    }
++
++    protected String currentTime() {
++        return this.currentTime.format(new Date());
++    }
++
++    protected void calcRecord(boolean writeEnabled) {
++        long avg = 0L, max = Long.MIN_VALUE, calls = 0L;
++        int i = 0, playerAvg = 0, chunks = 0;
++        for(i = 0; i < this.records.length && i <= this.lastIndex; i++) {
++            if(this.records[i] != null) {
++                avg += this.records[i].getTime();
++                if(this.writeEnabled) {
++                    playerAvg += this.records[i].getPlayerNumber();
++                    chunks += this.records[i].getGeneratedChunks();
++                    calls += this.records[i].getCount();
++                    if(this.records[i].getTime() > max) {
++                        max = this.records[i].getTime();
++                    }
++                }
++                this.records[i].reset();
++            }
++        }
++        if(i > 0) {
++            avg = avg / i;
++            playerAvg = playerAvg / i;
++            calls = calls / i;
++        } else {
++            avg = 0L;
++            calls = 0L;
++        }
++        this.avgTickEntitiesTime = avg;
++        this.avgPlayers = playerAvg;
++        if(writeEnabled) {
++            float favg = ((float)(avg / 100000L)) / 10.0F;
++            float fmax = ((float)(max / 100000L)) / 10.0F;
++            List<String> data = new LinkedList<String>();
++            data.add("Avg: " + favg);
++            data.add("Max: " + fmax);
++            data.add("AvgCalls: " + calls);
++            data.add("Players: " + playerAvg);
++            if(chunks > 0) {
++                data.add("GeneratedChunks: " + chunks);
++            }
++            this.addToOutput(this.counter, this.currentTime(), data);
++        }
++    }
++
++    protected void addToOutput(int counter, String time, List<String> data) {
++        StringBuilder sb = new StringBuilder();
++        sb.append(counter).append(" ");
++        sb.append(time).append(" ");
++        for(String s: data) {
++            if(s != null) {
++                sb.append(s.replace(".", ","));
++                sb.append("  ");
++            }
++        }
++        this.output.add(sb.toString());
++    }
++
++    protected void writeToFile() {
++        boolean exists = this.file.exists();
++        if(!exists) {
++            try {
++                this.folder.mkdirs();
++                exists = this.file.createNewFile();
++            } catch (IOException e) {
++                if(!errorShown) {
++                    errorShown = true;
++                    Logger a = Logger.getLogger("Minecraft");
++                    a.log(Level.WARNING, "MinetickMod-Profiler: Could not create the file: " + this.file.getAbsolutePath() + " Reason: "+ e.getMessage());
++                }
++            }
++        }
++        int code = 0;
++        boolean failed = false;
++        if(exists && this.file.canWrite()) {
++            try {
++                if(this.writer == null) {
++                    this.writer = new BufferedWriter(new FileWriter(this.file, true), 8 * 1024);
++                }
++                for(String s: this.output) {
++                    this.writer.write(s);
++                    this.writer.newLine();
++                }
++                this.writer.flush();
++            } catch (IOException e) {
++                failed = true;
++                code = 1;
++            } finally {
++                if(this.writer != null) {
++                    try {
++                        this.writer.close();
++                    } catch (IOException e) {}
++                }
++                this.writer = null;
++            }
++        } else {
++            failed = true;
++            code = 2;
++        }
++        if(failed && !errorShown) {
++            errorShown = true;
++            Logger a = Logger.getLogger("Minecraft");
++            a.log(Level.WARNING, "MinetickMod-Profiler: Could not write the profiler records of " + ident + " to disk! Code: " + code + "! " + this.file.getAbsolutePath());
++        }
++        this.output.clear();
++    }
++}
+diff --git a/src/main/java/de/minetick/profiler/ProfileCall.java b/src/main/java/de/minetick/profiler/ProfileCall.java
+new file mode 100644
+index 0000000..ce78fdc
+--- /dev/null
++++ b/src/main/java/de/minetick/profiler/ProfileCall.java
+@@ -0,0 +1,54 @@
++package de.minetick.profiler;
++
++public class ProfileCall {
++
++    private long time;
++    private int count;
++    private int playerNumber;
++    private int generatedChunks;
++
++    ProfileCall() {
++        this.reset();
++    }
++
++    public int getCount() {
++        return this.count;
++    }
++
++    public long getTime() {
++        return this.time;
++    }
++
++    public void reset() {
++        this.time = 0L;
++        this.count = 0;
++        this.playerNumber = 0;
++        this.generatedChunks = 0;
++    }
++
++    public void add(long t) {
++        this.time += t;
++        this.count++;
++    }
++
++    public void setTime(long t) {
++        this.time = t;
++        this.count++;
++    }
++
++    public void setPlayerNumber(int i) {
++        this.playerNumber = i;
++    }
++
++    public int getPlayerNumber() {
++        return this.playerNumber;
++    }
++
++    public void setGeneratedChunks(int count) {
++        this.generatedChunks += count;
++    }
++
++    public int getGeneratedChunks() {
++        return this.generatedChunks;
++    }
++}
+diff --git a/src/main/java/de/minetick/profiler/Profiler.java b/src/main/java/de/minetick/profiler/Profiler.java
+new file mode 100644
+index 0000000..5e48f78
+--- /dev/null
++++ b/src/main/java/de/minetick/profiler/Profiler.java
+@@ -0,0 +1,78 @@
++package de.minetick.profiler;
++
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.Map;
++
++public class Profiler {
++
++    private Map<String, Profile> map;
++    private boolean worldAvgsHaveChanged;
++    private int logInterval = 10; // seconds
++    private int avgsTickInterval = 5; // seconds
++    private int index = 0, avgIndex = 0;
++    private int counter = 0;
++    private boolean writeToFile;
++    private int writeInterval; // minutes
++
++    public Profiler(int logInterval, boolean writeToFile, int writeInterval) {
++        this.writeToFile = writeToFile;
++        this.logInterval = logInterval;
++        if(this.logInterval < 1) {
++            this.logInterval = 10;
++        }
++        this.writeInterval = writeInterval;
++        if(this.writeInterval < 1) {
++            this.writeInterval = 1;
++            this.writeToFile = false;
++        }
++        this.worldAvgsHaveChanged = false;
++        this.map = Collections.synchronizedMap(new HashMap<String, Profile>());
++    }
++
++    public Profile getProfile(String ident) {
++        return this.map.get(ident);
++    }
++
++    public void start(String ident) {
++        Profile p = this.map.get(ident);
++        if(p == null) {
++            int writeSteps = this.writeInterval * 60 / this.logInterval;
++            p = new Profile(this.logInterval, ident, this.avgsTickInterval, this.writeToFile, writeSteps);
++            this.map.put(ident, p);
++        }
++        p.start();
++    }
++
++    public Profile stop(String ident) {
++        Profile p = this.map.get(ident);
++        if(p != null) {
++            p.stop();
++            return p;
++        }
++        return null;
++    }
++
++    public void newTick() {
++        this.index++;
++        this.avgIndex++;
++        if(this.avgIndex >= this.avgsTickInterval * 20) {
++            this.avgIndex = 0;
++            this.worldAvgsHaveChanged = true;
++        }
++        if(this.index >= this.logInterval * 20) {
++            this.counter++;
++            this.index = 0;
++        }
++        for(Profile p: this.map.values()) {
++            p.newTick(this.index, this.counter);
++        }
++    }
++
++    public boolean checkAvgs() {
++        boolean out = this.worldAvgsHaveChanged;
++        this.worldAvgsHaveChanged = false;
++        return out;
++    }
++}
++
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 6fd1238..66db73b 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -179,6 +179,8 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+ 
+             this.a((PlayerList) (new DedicatedPlayerList(this))); // CraftBukkit
+ 
++            this.minetickMod.init(); // MinetickMod
++
+             if (!this.getOnlineMode()) {
+                 DedicatedServer.LOGGER.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
+                 DedicatedServer.LOGGER.warn("The server will make no attempt to authenticate usernames. Beware.");
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 2f896f6..d7c173a 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -55,6 +55,7 @@ import org.bukkit.event.world.WorldSaveEvent;
+ // MinetickMod start
+ import de.minetick.AutoSaveJob;
+ import de.minetick.AutoSaveJob.JobDetail;
++import de.minetick.MinetickMod;
+ 
+ import java.util.LinkedList;
+ // MinetickMod end
+@@ -129,6 +130,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     // CraftBukkit end
+ 
+     // MinetickMod start
++    protected MinetickMod minetickMod = new MinetickMod();
+     protected boolean snooperEnabled;
+     private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
+     private int autoSaveDelay = 0;
+@@ -164,6 +166,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+             this.autoSaveOrdered = false;
+         }
+     }
++
++    public void cancelHeavyCalculationsForAllWorlds(boolean cancel) {
++        for(WorldServer ws: this.worlds) {
++            ws.cancelHeavyCalculations(cancel);
++        }
++    }
+     // MinetickMod end
+ 
+     public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
+@@ -523,6 +531,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+                 this.n.e();
+             }
+ 
++            this.minetickMod.shutdown(); // MinetickMod
+         }
+     }
+ 
+@@ -661,6 +670,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     protected void z() throws ExceptionWorldConflict { // CraftBukkit - added throws
+         long i = System.nanoTime();
+ 
++        // MinetickMod start
++        this.minetickMod.getProfiler().start("GameLogicLoop");
++        this.minetickMod.startTickTimerTask();
++        this.minetickMod.increaseTickCounter();
++        // MinetickMod end
++
+         ++this.ticks;
+         if (this.T) {
+             this.T = false;
+@@ -695,10 +710,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         if(this.autoSaveOrdered) {
+             this.autoSaveNextWorld();
+         }
++        long tickTime = System.nanoTime() - i;
++        this.minetickMod.checkTickTime(tickTime);
+         // MinetickMod end
+ 
+         this.methodProfiler.a("tallying");
+-        this.h[this.ticks % 100] = System.nanoTime() - i;
++        this.h[this.ticks % 100] = tickTime; // MinetickMod
+         this.methodProfiler.b();
+         this.methodProfiler.a("snooper");
+         if (this.snooperEnabled && !this.n.d() && this.ticks > 100) { // MinetickMod
+@@ -711,6 +728,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+ 
+         this.methodProfiler.b();
+         this.methodProfiler.b();
++
++        // MinetickMod start
++        Profile p = this.minetickMod.getProfiler().stop("GameLogicLoop");
++        p.setCurrentPlayerNumber(this.B());
++        this.minetickMod.getProfiler().newTick();
++        // MinetickMod end
+     }
+ 
+     public void A() {
+@@ -791,6 +814,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         }
+ 
+         // MinetickMod start
++        this.minetickMod.cancelTimerTask(false);
++
+         for(i = 0; i < this.worlds.size(); ++i) {
+             WorldServer worldserver = this.worlds.get(i);
+             worldserver.processDimensionChangeQueue();
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 5b81ce5..ed76c8f 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -169,6 +169,7 @@ public abstract class World implements IBlockAccess {
+     // MinetickMod start
+     public boolean instaFall = false;
+     private List<Entity> dimensionChangeQueue = Collections.synchronizedList(new ArrayList<Entity>());
++    protected boolean cancelHeavyCalculations = false;
+ 
+     public void queueEntityForDimensionChange(Entity entity) {
+         this.dimensionChangeQueue.add(entity);
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 722c83c..9958221 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -54,6 +54,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+     // CraftBukkit start
+     public final int dimension;
+ 
++    // MinetickMod start
++    public void cancelHeavyCalculations(boolean cancel) {
++        this.cancelHeavyCalculations = cancel;
++    }
++    // MinetickMode end
++
+     // Add env and gen to constructor
+     public WorldServer(MinecraftServer minecraftserver, IDataManager idatamanager, WorldData worlddata, int i, MethodProfiler methodprofiler, org.bukkit.World.Environment env, org.bukkit.generator.ChunkGenerator gen) {
+         super(idatamanager, worlddata, WorldProvider.byDimension(env.getId()), methodprofiler, false, gen, env);
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 629e6b8..046399d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1642,4 +1642,18 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
+     }
++
++    // MinetickMod start
++    public boolean getMinetickModProfilerWriteEnabled() {
++        return configuration.getBoolean("minetickmod.profiler-write-log");
++    }
++
++    public int getMinetickModProfilerWriteInterval() {
++        return configuration.getInt("minetickmod.profiler-write-interval");
++    }
++
++    public int getMinetickModProfilerLogInterval() {
++        return configuration.getInt("minetickmod.profiler-log-interval");
++    }
++    // MinetickMod end
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index a6c1178..1f8cc40 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -44,3 +44,7 @@ database:
+     driver: org.sqlite.JDBC
+     password: walrus
+     url: jdbc:sqlite:{DIR}{NAME}.db
++minetickmod:
++    profiler-log-interval: 30
++    profiler-write-log: false
++    profiler-write-interval: 10
+-- 
+1.8.3.msysgit.0
+
