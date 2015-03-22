@@ -1,0 +1,68 @@
+From 7e6fa61d29e774bc04fa0135013cd027c059f498 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sun, 22 Mar 2015 05:59:22 +0100
+Subject: [PATCH] Update Client on Plugin PlayerInventory Change
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
+index 84955df..59c92f3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
+@@ -9,6 +9,13 @@ import org.bukkit.entity.HumanEntity;
+ import org.bukkit.inventory.EntityEquipment;
+ import org.bukkit.inventory.ItemStack;
+ 
++//MinetickMod start
++import java.util.HashMap;
++import net.minecraft.server.EntityHuman;
++import net.minecraft.server.EntityPlayer;
++import org.bukkit.Material;
++//MinetickMod end
++
+ public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.inventory.PlayerInventory, EntityEquipment {
+     public CraftInventoryPlayer(net.minecraft.server.PlayerInventory inventory) {
+         super(inventory);
+@@ -170,4 +177,40 @@ public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.i
+     public void setBootsDropChance(float chance) {
+         throw new UnsupportedOperationException();
+     }
++
++    // MinetickMod start
++    @Override
++    public HashMap<Integer, ItemStack> addItem(ItemStack... items) {
++        HashMap<Integer, ItemStack> leftover = super.addItem(items);
++        this.updatePlayerInventory();
++        return leftover;
++    }
++
++    @Override
++    public void remove(Material material) {
++        super.remove(material);
++        this.updatePlayerInventory();
++    }
++
++    @Override
++    public HashMap<Integer, ItemStack> removeItem(ItemStack... items) {
++        HashMap<Integer, ItemStack> leftover = super.removeItem(items);
++        this.updatePlayerInventory();
++        return leftover;
++    }
++
++    @Override
++    public void remove(ItemStack item) {
++        super.remove(item);
++        this.updatePlayerInventory();
++    }
++
++    private void updatePlayerInventory() {
++        EntityHuman human = this.getInventory().player;
++        if(human instanceof EntityPlayer) {
++            EntityPlayer player = (EntityPlayer) human;
++            player.updateInventory(player.defaultContainer);
++        }
++    }
++    // MinetickMod end
+ }
+-- 
+1.8.3.msysgit.0
+
