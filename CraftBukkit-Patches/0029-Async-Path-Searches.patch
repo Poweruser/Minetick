@@ -1,6 +1,6 @@
-From a582e727b297a87a0d583b7b7461e17c053e0f79 Mon Sep 17 00:00:00 2001
+From 06ae347b4617c98ed821600fbb3357aca4115ff4 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Tue, 24 Mar 2015 04:06:08 +0100
+Date: Tue, 24 Mar 2015 04:40:21 +0100
 Subject: [PATCH] Async Path Searches
 
 
@@ -882,6 +882,19 @@ index 3bd0853..292d3cd 100644
      protected abstract Pathfinder a();
  
      public void a(double d0) {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
+index a953aec..de954f4 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
+@@ -55,7 +55,7 @@ public class PathfinderGoalAvoidTarget<T extends Entity> extends PathfinderGoal
+             } else if (this.b.e(vec3d.a, vec3d.b, vec3d.c) < this.b.h(this.a)) {
+                 return false;
+             } else {
+-                this.g = this.h.a(vec3d.a, vec3d.b, vec3d.c);
++                this.g = this.h.a(vec3d.a, vec3d.b, vec3d.c, de.minetick.pathsearch.PositionPathSearchType.AVOIDTARGET); // MinetickMod
+                 return this.g == null ? false : this.g.b(vec3d);
+             }
+         }
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
 index 3d83cc3..7a2c1e8 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
