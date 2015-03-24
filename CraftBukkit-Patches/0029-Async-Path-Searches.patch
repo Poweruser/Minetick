@@ -1,0 +1,1092 @@
+From a582e727b297a87a0d583b7b7461e17c053e0f79 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Tue, 24 Mar 2015 04:06:08 +0100
+Subject: [PATCH] Async Path Searches
+
+
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 9eb0df2..85a96b4 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -15,6 +15,7 @@ import java.util.concurrent.ScheduledExecutorService;
+ import java.util.concurrent.ScheduledFuture;
+ import java.util.concurrent.TimeUnit;
+ 
++import net.minecraft.server.EntityInsentient;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.NBTCompressedStreamTools;
+ import net.minecraft.server.NBTTagCompound;
+@@ -22,8 +23,11 @@ import net.minecraft.server.NBTTagCompound;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ import org.bukkit.craftbukkit.CraftServer;
++import org.bukkit.entity.EntityType;
+ 
+ import de.minetick.modcommands.TPSCommand;
++import de.minetick.pathsearch.PathSearchJob;
++import de.minetick.pathsearch.PathSearchThrottlerThread;
+ import de.minetick.profiler.Profiler;
+ 
+ public class MinetickMod {
+@@ -41,6 +45,9 @@ public class MinetickMod {
+     private int ticksCounter = 0;
+     private final Logger log = LogManager.getLogger();
+     private HashSet<String> notGeneratingWorlds;
++    private PathSearchThrottlerThread pathSearchThrottler;
++    private HashSet<EntityType> entitiesWithOffloadedPathSearches;
++    private int minimumPathSearchOffloadDistance = 8;
+ 
+     public MinetickMod() {
+         this.tickTimerObject = new TickTimer();
+@@ -48,6 +55,8 @@ public class MinetickMod {
+         this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
+         this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
+         this.notGeneratingWorlds = new HashSet<String>();
++        this.pathSearchThrottler = new PathSearchThrottlerThread();
++        this.entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
+         instance = this;
+     }
+ 
+@@ -64,6 +73,17 @@ public class MinetickMod {
+             for(String w: worlds) {
+                 this.notGeneratingWorlds.add(w.toLowerCase());
+             }
++
++            List<String> entitiesWithOffloadedPathSearches = craftserver.getMinetickModEntitiesWithOffloadedPathSearches();
++            for(String name: entitiesWithOffloadedPathSearches) {
++                try {
++                    EntityType type = EntityType.valueOf(name.toUpperCase());
++                    this.entitiesWithOffloadedPathSearches.add(type);
++                } catch (IllegalArgumentException e) {
++                    log.warn("[MinetickMod] Settings: Skipping \"" + name + "\", as it is not a constant in org.bukkit.entity.EntityType!");
++                }
++            }
++            this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
+         }
+     }
+ 
+@@ -77,6 +97,7 @@ public class MinetickMod {
+ 
+     public void shutdown() {
+         this.timerService.shutdown();
++        this.pathSearchThrottler.shutdown();
+         this.nbtFileService.shutdown();
+         while(!this.nbtFileService.isTerminated()) {
+             try {
+@@ -185,4 +206,17 @@ public class MinetickMod {
+         }
+         return false;
+     }
++
++    public static boolean isPathSearchOffloadedFor(EntityInsentient entity) {
++        return instance.entitiesWithOffloadedPathSearches.contains(entity.getBukkitEntity().getType());
++    }
++
++    public static double getMinimumPathSearchOffloadDistance() {
++        return instance.minimumPathSearchOffloadDistance;
++    }
++
++    public static boolean queuePathSearch(PathSearchJob pathSearchJob) {
++        return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
++    }
++
+ }
+diff --git a/src/main/java/de/minetick/pathsearch/MinetickNavigation.java b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
+new file mode 100644
+index 0000000..77c67d1
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
+@@ -0,0 +1,228 @@
++package de.minetick.pathsearch;
++
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.UUID;
++import java.util.Map.Entry;
++
++import de.minetick.MinetickMod;
++import de.minetick.pathsearch.cache.SearchCacheEntry;
++import de.minetick.pathsearch.cache.SearchCacheEntryEntity;
++import de.minetick.pathsearch.cache.SearchCacheEntryPosition;
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.Entity;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.MathHelper;
++import net.minecraft.server.Navigation;
++import net.minecraft.server.PathEntity;
++import net.minecraft.server.World;
++
++public class MinetickNavigation extends Navigation {
++    
++    private HashMap<UUID, SearchCacheEntry> searchCache;
++    private HashMap<PositionPathSearchType, SearchCacheEntryPosition> positionSearchCache;
++    private boolean offloadSearches;
++    private boolean offloadSearchesConfigChecked;
++    private double minimumDistanceForOffloadingSquared;
++    private int cleanUpDelay = 0;
++    private Object jobLock = new Object();
++    private PathSearchJob lastIssuedJob;
++    
++    public MinetickNavigation(EntityInsentient entityinsentient, World world) {
++        super(entityinsentient, world);
++        this.searchCache = new HashMap<UUID, SearchCacheEntry>();
++        this.positionSearchCache = new HashMap<PositionPathSearchType, SearchCacheEntryPosition>();
++        this.offloadSearches = false;
++        this.offloadSearchesConfigChecked = false;
++        double minDist = MinetickMod.getMinimumPathSearchOffloadDistance();
++        this.minimumDistanceForOffloadingSquared = minDist * minDist;
++    }
++
++    private boolean hasAsyncSearchIssued() {
++        return this.lastIssuedJob != null;
++    }
++    
++    private void issueSearch(Entity target) {
++        PathSearchJob job = new PathSearchJobEntity(this, target);
++        synchronized(this.jobLock) {
++            PathSearchJob previous = this.lastIssuedJob;
++            this.lastIssuedJob = job;
++            if(!MinetickMod.queuePathSearch(job)) {
++                this.lastIssuedJob = previous;
++            }
++        }
++    }
++
++    private void issueSearch(BlockPosition blockposition, PositionPathSearchType type) {
++        PathSearchJob job = new PathSearchJobPosition(this, blockposition, type);
++        PathSearchJob previous = this.lastIssuedJob;
++        this.lastIssuedJob = job;
++        if(!MinetickMod.queuePathSearch(job)) {
++            this.lastIssuedJob = previous;
++        }
++    }
++
++    @Override
++    public void setSearchResult(PathSearchJobEntity pathSearch) {
++        synchronized (this.jobLock) {
++            if(this.lastIssuedJob == pathSearch) {
++                this.lastIssuedJob = null;
++            }
++        }
++        SearchCacheEntry entry = pathSearch.getCacheEntryValue();
++        if(entry != null && entry.didSearchSucceed()) {
++            synchronized(this.searchCache) {
++                UUID key = pathSearch.getCacheEntryKey();
++                this.searchCache.remove(key);
++                this.searchCache.put(key, entry);
++            }
++        }
++    }
++
++    @Override
++    public void setSearchResult(PathSearchJobPosition pathSearch) {
++        synchronized(this.jobLock) {
++            if(this.lastIssuedJob == pathSearch) {
++                this.lastIssuedJob = null;
++            }
++        }
++        SearchCacheEntryPosition entry = pathSearch.getCacheEntryValue();
++        if(entry != null && entry.didSearchSucceed()) {
++            synchronized(this.positionSearchCache) {
++                PositionPathSearchType key = pathSearch.getCacheEntryKey();
++                this.positionSearchCache.remove(key);
++                this.positionSearchCache.put(key, entry);
++            }
++        }
++    }
++
++    @Override
++    public PathEntity a(Entity entity) {
++        if(!this.offloadSearches() || this.b.h(entity) < this.minimumDistanceForOffloadingSquared) {
++            return super.a(entity);
++        }
++        if(!this.b()) {
++            return null;
++        }
++        SearchCacheEntry entry = null;
++        UUID id = entity.getUniqueID();
++        synchronized(this.searchCache) {
++            if(this.searchCache.containsKey(id)) {
++                entry = this.searchCache.get(id);
++            }
++        }
++        PathEntity resultPath = null;
++        if(entry != null) {
++            resultPath = entry.getAdjustedPathEntity();
++            if(!entry.isStillValid()) {
++                this.issueSearch(entity);
++            }
++        }
++        if(entry == null && !this.hasAsyncSearchIssued()) {
++            resultPath = super.a(entity);
++            if(resultPath != null) {
++                entry = new SearchCacheEntryEntity(this.b, entity, resultPath);
++                synchronized(this.searchCache) {
++                    SearchCacheEntry oldEntry = this.searchCache.put(id, entry);
++                    if(oldEntry != null) {
++                        oldEntry.cleanup();
++                    }
++                }
++            }
++        }
++        return resultPath;
++    }
++
++    @Override
++    public PathEntity a(BlockPosition blockposition) {
++        return this.a(blockposition, PositionPathSearchType.ANYOTHER);
++    }
++
++    public PathEntity a(BlockPosition blockposition, PositionPathSearchType type) {
++        if(!this.offloadSearches() || this.b.c(blockposition) < this.minimumDistanceForOffloadingSquared) {
++            return super.a(blockposition);
++        }
++        if(!this.b()) {
++            return null;
++        }
++
++        SearchCacheEntryPosition entry = null;
++        synchronized(this.positionSearchCache) {
++            if(this.positionSearchCache.containsKey(type)) {
++                entry = this.positionSearchCache.get(type);
++            }
++        }
++
++        PathEntity resultPath = null;
++        if(entry != null) {
++            resultPath = entry.getAdjustedPathEntity();
++            if(!entry.isStillValid()) {
++                this.issueSearch(blockposition, type);
++            }
++        }
++        if(entry == null && !this.hasAsyncSearchIssued()) {
++            resultPath = super.a(blockposition);
++            if(resultPath != null) {
++                entry = new SearchCacheEntryPosition(this.b, blockposition, resultPath);
++                synchronized(this.positionSearchCache) {
++                    SearchCacheEntry oldEntry = this.positionSearchCache.put(type, entry);
++                    if(oldEntry != null) {
++                        oldEntry.cleanup();
++                    }
++                }
++            }
++        }
++        return resultPath;
++    }
++
++    @Override
++    public PathEntity a(double d0, double d1, double d2, PositionPathSearchType type) {
++        return this.a(new BlockPosition(MathHelper.floor(d0), (int) d1, MathHelper.floor(d2)), type);
++    }
++
++    @Override
++    public boolean a(double d0, double d1, double d2, double d3, PositionPathSearchType type) {
++        PathEntity pathentity = this.a((double) MathHelper.floor(d0), (double) ((int) d1), (double) MathHelper.floor(d2), type);
++
++        return this.a(pathentity, d3);
++    }
++
++    public void cleanUpExpiredSearches() {
++        this.cleanUpDelay++;
++        if(this.cleanUpDelay > 100) {
++            this.cleanUpDelay = 0;
++            synchronized(this.searchCache) {
++                Iterator<Entry<UUID, SearchCacheEntry>> iterator = this.searchCache.entrySet().iterator();
++                while(iterator.hasNext()) {
++                    SearchCacheEntry entry = iterator.next().getValue();
++                    if(entry.hasExpired()) {
++                        iterator.remove();
++                        entry.cleanup();
++                    } else {
++                        break;
++                    }
++                }
++            }
++            synchronized(this.positionSearchCache) {
++                Iterator<Entry<PositionPathSearchType, SearchCacheEntryPosition>> iterator = this.positionSearchCache.entrySet().iterator();
++                while(iterator.hasNext()) {
++                    SearchCacheEntryPosition entry = iterator.next().getValue();
++                    if(entry.hasExpired()) {
++                        iterator.remove();
++                        entry.cleanup();
++                    } else {
++                        break;
++                    }
++                }
++            }
++        }
++    }
++
++    private boolean offloadSearches() {
++        if(!this.offloadSearchesConfigChecked) {
++            this.offloadSearches = MinetickMod.isPathSearchOffloadedFor(this.b);
++            this.offloadSearchesConfigChecked = true;
++        }
++        return this.offloadSearches;
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/PathSearchJob.java b/src/main/java/de/minetick/pathsearch/PathSearchJob.java
+new file mode 100644
+index 0000000..4c38933
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/PathSearchJob.java
+@@ -0,0 +1,46 @@
++package de.minetick.pathsearch;
++
++import net.minecraft.server.ChunkCache;
++import net.minecraft.server.EntityCreature;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.NavigationAbstract;
++import net.minecraft.server.PathEntity;
++
++public abstract class PathSearchJob implements Runnable {
++
++    public NavigationAbstract navigation;
++    protected ChunkCache chunkCache;
++    protected boolean issued;
++    private int hashCode;
++    protected PathEntity pathEntity;
++
++    public PathSearchJob(NavigationAbstract navigation) {
++        this.navigation = navigation;
++        this.hashCode = this.navigation.hashCode();
++        this.issued = false;
++        this.chunkCache = this.navigation.createChunkCache(this.isEntitySearch());
++    }
++
++    protected boolean isEntitySearch() {
++        return false;
++    }
++
++    public void cleanup() {
++        this.navigation = null;
++        this.chunkCache = null;
++        this.pathEntity = null;
++    }
++
++    @Override
++    public int hashCode() {
++        return this.hashCode;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if(o == null || !(o instanceof PathSearchJob)) {
++            return false;
++        }
++        return this.hashCode() == ((PathSearchJob)o).hashCode();
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/PathSearchJobEntity.java b/src/main/java/de/minetick/pathsearch/PathSearchJobEntity.java
+new file mode 100644
+index 0000000..b358eec
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/PathSearchJobEntity.java
+@@ -0,0 +1,55 @@
++package de.minetick.pathsearch;
++
++import java.util.UUID;
++
++import de.minetick.pathsearch.cache.SearchCacheEntry;
++import de.minetick.pathsearch.cache.SearchCacheEntryEntity;
++
++import net.minecraft.server.ChunkCache;
++import net.minecraft.server.Entity;
++import net.minecraft.server.EntityCreature;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.NavigationAbstract;
++import net.minecraft.server.PathEntity;
++
++public class PathSearchJobEntity extends PathSearchJob {
++
++    public Entity target;
++
++    public PathSearchJobEntity(NavigationAbstract navigation, Entity target) {
++        super(navigation);
++        this.target = target;
++    }
++
++    @Override
++    public void run() {
++        if(!this.issued) {
++            this.issued = true;
++            this.pathEntity = this.navigation.doPathSearch(this.chunkCache, this.target);
++            this.navigation.setSearchResult(this);
++            this.cleanup();
++        }
++    }
++
++    @Override
++    protected boolean isEntitySearch() {
++        return true;
++    }
++    
++    @Override
++    public void cleanup() {
++        super.cleanup();
++        this.target = null;
++    }
++
++    public UUID getCacheEntryKey() {
++        return this.target.getUniqueID();
++    }
++
++    public SearchCacheEntry getCacheEntryValue() {
++        if(this.pathEntity != null) {
++            return new SearchCacheEntryEntity(this.navigation.getEntity(), this.target, this.pathEntity);
++        }
++        return null;
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/PathSearchJobPosition.java b/src/main/java/de/minetick/pathsearch/PathSearchJobPosition.java
+new file mode 100644
+index 0000000..4e691c6
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/PathSearchJobPosition.java
+@@ -0,0 +1,60 @@
++package de.minetick.pathsearch;
++
++import de.minetick.pathsearch.cache.SearchCacheEntryPosition;
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.NavigationAbstract;
++import net.minecraft.server.PathEntity;
++
++public class PathSearchJobPosition extends PathSearchJob {
++
++    private PositionPathSearchType type;
++    private BlockPosition blockposition;
++
++    public PathSearchJobPosition(NavigationAbstract navigation, BlockPosition blockposition, PositionPathSearchType type) {
++        super(navigation);
++        this.blockposition = blockposition;
++        this.type = type;
++    }
++
++    @Override
++    public void run() {
++        if(!this.issued) {
++            this.issued = true;
++            this.pathEntity = this.navigation.doPathSearch(this.chunkCache, this.blockposition);
++            this.navigation.setSearchResult(this);
++            this.cleanup();
++        }
++    }
++
++    public PositionPathSearchType getCacheEntryKey() {
++        return this.type;
++    }
++
++    public SearchCacheEntryPosition getCacheEntryValue() {
++        if(this.pathEntity != null) {
++            return new SearchCacheEntryPosition(this.navigation.getEntity(), this.blockposition, this.pathEntity);
++        }
++        return null;
++    }
++
++    @Override
++    public int hashCode() {
++        return this.type.hashCode() ^ (super.hashCode() << 4);
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if(o == null || !(o instanceof PathSearchJobPosition)) {
++            return false;
++        }
++        PathSearchJobPosition other = (PathSearchJobPosition) o;
++        return this.type.equals(other.type) && this.hashCode() == other.hashCode();
++    }
++
++    @Override
++    public void cleanup() {
++        super.cleanup();
++        this.blockposition = null;
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
+new file mode 100644
+index 0000000..42909f7
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
+@@ -0,0 +1,103 @@
++package de.minetick.pathsearch;
++
++import java.util.Iterator;
++import java.util.LinkedHashMap;
++import java.util.Map.Entry;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.RejectedExecutionException;
++
++import net.minecraft.server.Entity;
++
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.EntityType;
++
++import de.minetick.MinetickMod;
++import de.minetick.MinetickThreadFactory;
++
++public class PathSearchThrottlerThread implements Runnable {
++
++    private static final int POOL_SIZE = 2;
++    private ExecutorService pathFinder = Executors.newScheduledThreadPool(POOL_SIZE, new MinetickThreadFactory(Thread.MIN_PRIORITY, "MinetickMod_PathFinder"));
++    private Future<?>[] activeJobs;
++    private Object waitObject;
++    private LinkedHashMap<PathSearchJob, PathSearchJob> filter;
++    private Thread thread;
++    private boolean running;
++
++    public PathSearchThrottlerThread() {
++        this.waitObject = new Object();
++        this.filter = new LinkedHashMap<PathSearchJob, PathSearchJob>();
++        this.activeJobs = new Future<?>[POOL_SIZE * 8];
++        this.thread = new Thread(this);
++        this.running = true;
++        this.thread.setName("MinetickMod_PathSearchThrottlerThread");
++        this.thread.setPriority(Thread.MIN_PRIORITY + 1);
++        this.thread.start();
++    }
++
++    public boolean queuePathSearch(PathSearchJob job) {
++        synchronized(this.filter) {
++            if(this.filter.size() < 1000 || this.filter.containsKey(job)) {
++                PathSearchJob previousJob = this.filter.put(job, job);
++                if(previousJob != null) {
++                    previousJob.cleanup();
++                }
++            } else {
++                return false;
++            }
++        }
++        this.wakeUp();
++        return true;
++    }
++
++    public void wakeUp() {
++        synchronized(this.waitObject) {
++            this.waitObject.notifyAll();
++        }
++    }
++
++    public void shutdown() {
++        this.running = false;
++        this.pathFinder.shutdownNow();
++    }
++
++    private boolean checkPendingJobs() {
++        boolean newSearchesSubmitted = false;
++        for(int i = 0; i < this.activeJobs.length && !this.filter.isEmpty(); i++) {
++            Future<?> f = this.activeJobs[i];
++            if(f == null || f.isDone()) {
++                this.activeJobs[i] = null;
++                PathSearchJob job = null;
++                synchronized(this.filter) {
++                    Iterator<Entry<PathSearchJob, PathSearchJob>> iter = this.filter.entrySet().iterator();
++                    if(iter.hasNext()) {
++                        job = iter.next().getValue();
++                        iter.remove();
++                    }
++                }
++                if(job != null) {
++                    try {
++                        this.activeJobs[i] = this.pathFinder.submit(job);
++                        newSearchesSubmitted = true;
++                    } catch (RejectedExecutionException exception) { }
++                }
++            }
++        }
++        return !this.filter.isEmpty() && newSearchesSubmitted;
++    }
++
++    @Override
++    public void run() {
++        while(this.running) {
++            if(!this.checkPendingJobs()) {
++                synchronized(this.waitObject) {
++                    try {
++                        this.waitObject.wait(5L);
++                    } catch (InterruptedException e) {}
++                }
++            }
++        }
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/PositionPathSearchType.java b/src/main/java/de/minetick/pathsearch/PositionPathSearchType.java
+new file mode 100644
+index 0000000..22e0b28
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/PositionPathSearchType.java
+@@ -0,0 +1,16 @@
++package de.minetick.pathsearch;
++
++public enum PositionPathSearchType {
++    ANYOTHER,
++    AVOIDTARGET,
++    FLEESUN,
++    GOTOTARGET,
++    MOVEINDOORS,
++    MOVETHROUGHVILLAGE,
++    MOVETOWARDSRESTRICTION,
++    MOVETOWARDSTARGET,
++    PANIC,
++    PLAY,
++    RANDOMSTROLL,
++    TAME;
++}
+diff --git a/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java
+new file mode 100644
+index 0000000..153fdea
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java
+@@ -0,0 +1,76 @@
++package de.minetick.pathsearch.cache;
++
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.Entity;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.PathEntity;
++import net.minecraft.server.PathPoint;
++
++public class SearchCacheEntry {
++    protected long tick;
++    protected BlockPosition positionStart;
++    protected BlockPosition positionTarget;
++    protected EntityInsentient entity;
++    private PathEntity path;
++
++    public SearchCacheEntry(EntityInsentient entity, PathEntity path) {
++        this.entity = entity;
++        this.positionStart = this.getBlockPosition(this.entity);
++        this.path = path;
++        this.tick = this.getCurrentTick();
++    }
++
++    protected int getCurrentTick() {
++        return MinecraftServer.getServer().as();
++    }
++
++    protected BlockPosition getBlockPosition(Entity entity) {
++        return new BlockPosition(entity).up();
++    }
++
++    protected BlockPosition getBlockPosition(int x, int y, int z) {
++        return new BlockPosition(x, y, z);
++    }
++
++    public boolean isStillValid() {
++        return this.didSearchSucceed() && (this.getCurrentTick() - this.tick < 10);
++    }
++
++    public PathEntity getPathEntity() {
++        return this.path;
++    }
++
++    public boolean hasExpired() {
++        return !this.entity.isAlive() || !this.entity.valid  || (this.getCurrentTick() - this.tick) > 100;
++    }
++
++    public boolean didSearchSucceed() {
++        return this.path != null;
++    }
++
++    public PathEntity getAdjustedPathEntity() {
++        if(this.path != null && (this.path.e() < this.path.d() - 1)) {
++            PathPoint pathpoint = this.path.a(this.path.e());
++            double currentDist = this.entity.e(pathpoint.a, pathpoint.b, pathpoint.c);
++            while(this.path.e() < this.path.d() - 1) {
++                pathpoint = this.path.a(this.path.e() + 1);
++                double nextDist = this.entity.e(pathpoint.a, pathpoint.b, pathpoint.c);
++                if(nextDist < currentDist) {
++                    currentDist = nextDist;
++                    this.path.a();
++                } else {
++                    break;
++                }
++            }
++        }
++        return this.path;
++    }
++
++    public void cleanup() {
++        this.positionStart = null;
++        this.positionTarget = null;
++        this.entity = null;
++        this.path = null;
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryEntity.java b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryEntity.java
+new file mode 100644
+index 0000000..2b02066
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryEntity.java
+@@ -0,0 +1,31 @@
++package de.minetick.pathsearch.cache;
++
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.Entity;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.PathEntity;
++
++public class SearchCacheEntryEntity extends SearchCacheEntry {
++
++    private Entity target;
++
++    public SearchCacheEntryEntity(EntityInsentient entity, Entity target, PathEntity path) {
++        super(entity, path);
++        this.target = target;
++        this.positionTarget = this.getBlockPosition(this.target);
++    }
++
++    @Override
++    public boolean isStillValid() {
++        if(super.isStillValid()) {
++            return this.getBlockPosition(this.target).equals(this.positionTarget);
++        }
++        return false;
++    }
++    
++    @Override
++    public void cleanup() {
++        super.cleanup();
++        this.target = null;
++    }
++}
+diff --git a/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryPosition.java b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryPosition.java
+new file mode 100644
+index 0000000..e97a474
+--- /dev/null
++++ b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntryPosition.java
+@@ -0,0 +1,21 @@
++package de.minetick.pathsearch.cache;
++
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.PathEntity;
++
++public class SearchCacheEntryPosition extends SearchCacheEntry {
++    
++    public SearchCacheEntryPosition(EntityInsentient entity, BlockPosition blockposition, PathEntity path) {
++        super(entity, path);
++        this.positionTarget = blockposition;
++    }
++
++    @Override
++    public boolean isStillValid() {
++        if(super.isStillValid()) {
++            return this.getBlockPosition(this.entity).equals(this.positionStart);
++        }
++        return false;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index 769979f..f1f5aa6 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -13,6 +13,8 @@ import org.bukkit.event.entity.EntityUnleashEvent;
+ import org.bukkit.event.entity.EntityUnleashEvent.UnleashReason;
+ // CraftBukkit end
+ 
++import de.minetick.pathsearch.MinetickNavigation; // MinetickMod
++
+ public abstract class EntityInsentient extends EntityLiving {
+ 
+     public int a_;
+@@ -60,7 +62,7 @@ public abstract class EntityInsentient extends EntityLiving {
+     }
+ 
+     protected NavigationAbstract b(World world) {
+-        return new Navigation(this, world);
++        return new MinetickNavigation(this, world); // MinetickMod
+     }
+ 
+     public ControllerLook getControllerLook() {
+@@ -452,6 +454,7 @@ public abstract class EntityInsentient extends EntityLiving {
+ 
+     protected final void doTick() {
+         ++this.ticksFarFromPlayer;
++        this.navigation.cleanUpExpiredSearches(); // MinetickMod
+         this.world.methodProfiler.a("checkDespawn");
+         this.D();
+         this.world.methodProfiler.b();
+diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
+index 3bd0853..292d3cd 100644
+--- a/src/main/java/net/minecraft/server/NavigationAbstract.java
++++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
+@@ -3,6 +3,12 @@ package net.minecraft.server;
+ import java.util.Iterator;
+ import java.util.List;
+ 
++// MinetickMod start
++import de.minetick.pathsearch.PathSearchJobEntity;
++import de.minetick.pathsearch.PathSearchJobPosition;
++import de.minetick.pathsearch.PositionPathSearchType;
++// MinetickMod end
++
+ public abstract class NavigationAbstract {
+ 
+     protected EntityInsentient b;
+@@ -23,6 +29,53 @@ public abstract class NavigationAbstract {
+         this.j = this.a();
+     }
+ 
++    // MinetickMod start
++    public EntityInsentient getEntity() {
++        return this.b;
++    }
++
++    @Override
++    public int hashCode() {
++        return this.b.getUniqueID().hashCode();
++    }
++
++    public void cleanUpExpiredSearches() {}
++
++    public void setSearchResult(PathSearchJobEntity pathSearch) { }
++
++    public void setSearchResult(PathSearchJobPosition pathSearch) { }
++
++    public boolean a(double d0, double d1, double d2, double d3, PositionPathSearchType type) {
++        return this.a(d0, d1, d2, d3);
++    }
++
++    public PathEntity a(double d0, double d1, double d2, PositionPathSearchType type) {
++        return this.a(d0, d1, d2);
++    }
++
++    public ChunkCache createChunkCache(boolean forEntitySearch) {
++        if (this.b()) {
++            float f = this.i();
++            BlockPosition blockposition1 = new BlockPosition(this.b);
++            int i = (int) (f + (forEntitySearch ? 16.0F : 8.0F));
++            return new ChunkCache(this.c, blockposition1.a(-i, -i, -i), blockposition1.a(i, i, i), 0);
++        }
++        return null;
++    }
++
++    public PathEntity doPathSearch(ChunkCache chunkcache, BlockPosition blockposition) {
++        if (this.b()) {
++            float f = this.i();
++            return this.j.a((IBlockAccess) chunkcache, (Entity) this.b, blockposition, f);
++        }
++        return null;
++    }
++
++    public PathEntity doPathSearch(ChunkCache chunkcache, Entity entity) {
++        return this.doPathSearch(chunkcache, (new BlockPosition(entity)).up());
++    }
++    // MinetickMod end
++
+     protected abstract Pathfinder a();
+ 
+     public void a(double d0) {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
+index 3d83cc3..7a2c1e8 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
+@@ -44,7 +44,7 @@ public class PathfinderGoalFleeSun extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.a.getNavigation().a(this.b, this.c, this.d, this.e);
++        this.a.getNavigation().a(this.b, this.c, this.d, this.e, de.minetick.pathsearch.PositionPathSearchType.FLEESUN); // MinetickMod
+     }
+ 
+     private Vec3D f() {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalGotoTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalGotoTarget.java
+index 3d19e52..354585f 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalGotoTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalGotoTarget.java
+@@ -34,7 +34,7 @@ public abstract class PathfinderGoalGotoTarget extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.c.getNavigation().a((double) ((float) this.b.getX()) + 0.5D, (double) (this.b.getY() + 1), (double) ((float) this.b.getZ()) + 0.5D, this.d);
++        this.c.getNavigation().a((double) ((float) this.b.getX()) + 0.5D, (double) (this.b.getY() + 1), (double) ((float) this.b.getZ()) + 0.5D, this.d, de.minetick.pathsearch.PositionPathSearchType.GOTOTARGET); // MinetickMod
+         this.e = 0;
+         this.f = this.c.bc().nextInt(this.c.bc().nextInt(1200) + 1200) + 1200;
+     }
+@@ -46,7 +46,7 @@ public abstract class PathfinderGoalGotoTarget extends PathfinderGoal {
+             this.g = false;
+             ++this.e;
+             if (this.e % 40 == 0) {
+-                this.c.getNavigation().a((double) ((float) this.b.getX()) + 0.5D, (double) (this.b.getY() + 1), (double) ((float) this.b.getZ()) + 0.5D, this.d);
++                this.c.getNavigation().a((double) ((float) this.b.getX()) + 0.5D, (double) (this.b.getY() + 1), (double) ((float) this.b.getZ()) + 0.5D, this.d, de.minetick.pathsearch.PositionPathSearchType.GOTOTARGET); // MinetickMod
+             }
+         } else {
+             this.g = true;
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalMoveIndoors.java b/src/main/java/net/minecraft/server/PathfinderGoalMoveIndoors.java
+index b3402fb..5153c51 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalMoveIndoors.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalMoveIndoors.java
+@@ -50,10 +50,10 @@ public class PathfinderGoalMoveIndoors extends PathfinderGoal {
+             Vec3D vec3d = RandomPositionGenerator.a(this.a, 14, 3, new Vec3D((double) i + 0.5D, (double) j, (double) k + 0.5D));
+ 
+             if (vec3d != null) {
+-                this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c, 1.0D);
++                this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c, 1.0D, de.minetick.pathsearch.PositionPathSearchType.MOVEINDOORS); // MinetickMod
+             }
+         } else {
+-            this.a.getNavigation().a((double) i + 0.5D, (double) j, (double) k + 0.5D, 1.0D);
++            this.a.getNavigation().a((double) i + 0.5D, (double) j, (double) k + 0.5D, 1.0D, de.minetick.pathsearch.PositionPathSearchType.MOVEINDOORS); // MinetickMod
+         }
+ 
+     }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalMoveThroughVillage.java b/src/main/java/net/minecraft/server/PathfinderGoalMoveThroughVillage.java
+index 3755944..9198bb2 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalMoveThroughVillage.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalMoveThroughVillage.java
+@@ -52,7 +52,7 @@ public class PathfinderGoalMoveThroughVillage extends PathfinderGoal {
+                             return false;
+                         } else {
+                             navigation.b(false);
+-                            this.c = this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c);
++                            this.c = this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c, de.minetick.pathsearch.PositionPathSearchType.MOVETHROUGHVILLAGE); // MinetickMod
+                             navigation.b(flag);
+                             return this.c != null;
+                         }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsRestriction.java b/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsRestriction.java
+index 7d2a14b..50a2c3d 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsRestriction.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsRestriction.java
+@@ -37,6 +37,6 @@ public class PathfinderGoalMoveTowardsRestriction extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.a.getNavigation().a(this.b, this.c, this.d, this.e);
++        this.a.getNavigation().a(this.b, this.c, this.d, this.e, de.minetick.pathsearch.PositionPathSearchType.MOVETOWARDSRESTRICTION); // MinetickMod
+     }
+ }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsTarget.java
+index 97bf754..fc31847 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalMoveTowardsTarget.java
+@@ -46,6 +46,6 @@ public class PathfinderGoalMoveTowardsTarget extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.a.getNavigation().a(this.c, this.d, this.e, this.f);
++        this.a.getNavigation().a(this.c, this.d, this.e, this.f, de.minetick.pathsearch.PositionPathSearchType.MOVETOWARDSTARGET); // MinetickMod
+     }
+ }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
+index 30907ef..f477fa1 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
+@@ -32,7 +32,7 @@ public class PathfinderGoalPanic extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.b.getNavigation().a(this.c, this.d, this.e, this.a);
++        this.b.getNavigation().a(this.c, this.d, this.e, this.a, de.minetick.pathsearch.PositionPathSearchType.PANIC); // MinetickMod
+     }
+ 
+     public boolean b() {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalPlay.java b/src/main/java/net/minecraft/server/PathfinderGoalPlay.java
+index fc2f47b..5c3c0a4 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalPlay.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalPlay.java
+@@ -81,7 +81,7 @@ public class PathfinderGoalPlay extends PathfinderGoal {
+                 return;
+             }
+ 
+-            this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c, this.c);
++            this.a.getNavigation().a(vec3d.a, vec3d.b, vec3d.c, this.c, de.minetick.pathsearch.PositionPathSearchType.PLAY); // MinetickMod
+         }
+ 
+     }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
+index 763bbd9..f43b3a6 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
+@@ -50,7 +50,7 @@ public class PathfinderGoalRandomStroll extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.a.getNavigation().a(this.b, this.c, this.d, this.e);
++        this.a.getNavigation().a(this.b, this.c, this.d, this.e, de.minetick.pathsearch.PositionPathSearchType.RANDOMSTROLL); // MinetickMod
+     }
+ 
+     public void f() {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTame.java b/src/main/java/net/minecraft/server/PathfinderGoalTame.java
+index 123e657..23e69e6 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalTame.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalTame.java
+@@ -32,7 +32,7 @@ public class PathfinderGoalTame extends PathfinderGoal {
+     }
+ 
+     public void c() {
+-        this.entity.getNavigation().a(this.c, this.d, this.e, this.b);
++        this.entity.getNavigation().a(this.c, this.d, this.e, this.b, de.minetick.pathsearch.PositionPathSearchType.TAME); // MinetickMod
+     }
+ 
+     public boolean b() {
+diff --git a/src/main/java/net/minecraft/server/PathfinderNormal.java b/src/main/java/net/minecraft/server/PathfinderNormal.java
+index 0a14c9d..db8f0e8 100644
+--- a/src/main/java/net/minecraft/server/PathfinderNormal.java
++++ b/src/main/java/net/minecraft/server/PathfinderNormal.java
+@@ -158,8 +158,8 @@ public class PathfinderNormal extends PathfinderAbstract {
+                             flag3 = true;
+                         }
+ 
+-                        if (entity.world.getType(blockposition_mutableblockposition).getBlock() instanceof BlockMinecartTrackAbstract) {
+-                            if (!(entity.world.getType(blockposition).getBlock() instanceof BlockMinecartTrackAbstract) && !(entity.world.getType(blockposition.down()).getBlock() instanceof BlockMinecartTrackAbstract)) {
++                        if (iblockaccess.getType(blockposition_mutableblockposition).getBlock() instanceof BlockMinecartTrackAbstract) { // MinetickMod - use @iblockaccess instead of entity.world
++                            if (!(iblockaccess.getType(blockposition).getBlock() instanceof BlockMinecartTrackAbstract) && !(iblockaccess.getType(blockposition.down()).getBlock() instanceof BlockMinecartTrackAbstract)) {  // MinetickMod - use @iblockaccess instead of entity.world
+                                 return -3;
+                             }
+                         } else if (!block.b(iblockaccess, blockposition_mutableblockposition) && (!flag1 || !(block instanceof BlockDoor) || block.getMaterial() != Material.WOOD)) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 3415d34..4fa5066 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1659,5 +1659,13 @@ public final class CraftServer implements Server {
+     public List<String> getMinetickModNotGeneratingWorlds() {
+         return configuration.getStringList("minetickmod.notGeneratingWorlds");
+     }
++
++    public List<String> getMinetickModEntitiesWithOffloadedPathSearches() {
++        return configuration.getStringList("minetickmod.entitiesWithOffloadedPathSearches");
++    }
++
++    public int getMinetickModMinimumTargetDistanceForOffloading(int defaultDistance) {
++        return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", defaultDistance);
++    }
+     // MinetickMod end
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index 0de56c2..3e02cf2 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -49,3 +49,26 @@ minetickmod:
+     profiler-write-log: false
+     profiler-write-interval: 10
+     notGeneratingWorlds: []
++    minimumTargetDistanceForOffloadedPathSearches: 0
++    entitiesWithOffloadedPathSearches:
++    - BAT
++    - BLAZE
++    - CHICKEN
++    - COW
++    - CREEPER
++    - ENDERMAN
++    - HORSE
++    - IRON_GOLEM
++    - MAGMA_CUBE
++    - MUSHROOM_COW
++    - PIG
++    - PIG_ZOMBIE
++    - RABBIT
++    - SHEEP
++    - SKELETON
++    - SILVERFISH
++    - SLIME
++    - SNOWMAN
++    - SQUID
++    - WITCH
++    - ZOMBIE
+-- 
+1.8.3.msysgit.0
+
