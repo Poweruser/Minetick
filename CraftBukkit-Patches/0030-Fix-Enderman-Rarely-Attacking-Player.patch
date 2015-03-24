@@ -1,0 +1,31 @@
+From f8420210199f0981f59b414aa6a5d3a9f3758738 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Tue, 24 Mar 2015 07:36:26 +0100
+Subject: [PATCH] Fix Enderman Rarely Attacking Player
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityEnderman.java b/src/main/java/net/minecraft/server/EntityEnderman.java
+index 2bf00b0..d3bd658 100644
+--- a/src/main/java/net/minecraft/server/EntityEnderman.java
++++ b/src/main/java/net/minecraft/server/EntityEnderman.java
+@@ -88,7 +88,7 @@ public class EntityEnderman extends EntityMonster {
+             return false;
+         } else {
+             Vec3D vec3d = entityhuman.d(1.0F).a();
+-            Vec3D vec3d1 = new Vec3D(this.locX - entityhuman.locX, this.getBoundingBox().b + (double) (this.length / 2.0F) - (entityhuman.locY + (double) entityhuman.getHeadHeight()), this.locZ - entityhuman.locZ);
++            Vec3D vec3d1 = new Vec3D(this.locX - entityhuman.locX, (this.locY + (double) this.getHeadHeight()) - (entityhuman.locY + (double) entityhuman.getHeadHeight()), this.locZ - entityhuman.locZ); // MinetickMod
+             double d0 = vec3d1.b();
+ 
+             vec3d1 = vec3d1.a();
+@@ -145,7 +145,7 @@ public class EntityEnderman extends EntityMonster {
+     }
+ 
+     protected boolean b(Entity entity) {
+-        Vec3D vec3d = new Vec3D(this.locX - entity.locX, this.getBoundingBox().b + (double) (this.length / 2.0F) - entity.locY + (double) entity.getHeadHeight(), this.locZ - entity.locZ);
++        Vec3D vec3d = new Vec3D(this.locX - entity.locX, this.locY + (double) this.getHeadHeight() - entity.locY + (double) entity.getHeadHeight(), this.locZ - entity.locZ); // MinetickMod
+ 
+         vec3d = vec3d.a();
+         double d0 = 16.0D;
+-- 
+1.8.3.msysgit.0
+
