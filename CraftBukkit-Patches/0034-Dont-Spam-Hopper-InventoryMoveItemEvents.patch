@@ -1,0 +1,165 @@
+From d55f1fa7b0553894dbf10004139b44202e3b45a7 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Wed, 25 Mar 2015 03:38:32 +0100
+Subject: [PATCH] Dont Spam Hopper InventoryMoveItemEvents
+
+
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index 72d067a..f9a48e7 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -43,6 +43,41 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+     }
+     // CraftBukkit end
+ 
++    // MinetickMod start
++    private static int doesInventoryHaveEnoughSpaceForItem(IInventory iinventory, ItemStack itemstack, EnumDirection enumdirection) {
++        if (iinventory instanceof IWorldInventory && enumdirection != null) {
++            IWorldInventory iworldinventory = (IWorldInventory) iinventory;
++            int[] possibleSlots = iworldinventory.getSlotsForFace(enumdirection);
++            for(int i = 0; i < possibleSlots.length; i++) {
++                int slotId = possibleSlots[i];
++                if(a(iinventory, itemstack, slotId, enumdirection)) {
++                    ItemStack slot = iinventory.getItem(slotId);
++                    if(slot == null || a(slot, itemstack)) {
++                        return slotId;
++                    }
++                }
++            }
++        } else {
++            int size = iinventory.getSize();
++            for(int i = 0; i < size; i++) {
++                if(a(iinventory, itemstack, i, enumdirection)) {
++                    ItemStack slot = iinventory.getItem(i);
++                    if(slot == null || a(slot, itemstack)) {
++                        return i;
++                    }
++                }
++            }
++        }
++        return -1;
++    }
++
++    private static int checkForPossibleInventorySlot(IInventory iinventory, ItemStack itemstack, EnumDirection enumdirection) {
++        ItemStack copyOfItemBeingProcessed = itemstack.cloneItemStack();
++        copyOfItemBeingProcessed.count = 1;
++        return doesInventoryHaveEnoughSpaceForItem(iinventory, copyOfItemBeingProcessed, enumdirection);
++    }
++    // MinetickMod end
++
+     public TileEntityHopper() {}
+ 
+     public void a(NBTTagCompound nbttagcompound) {
+@@ -252,6 +287,13 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                         ItemStack itemstack = this.getItem(i).cloneItemStack();
+                         // ItemStack itemstack1 = addItem(iinventory, this.splitStack(i, 1), enumdirection);
+ 
++                        // MinetickMod start
++                        int possibleInventorySlot = checkForPossibleInventorySlot(iinventory, itemstack, enumdirection);
++                        if(possibleInventorySlot < 0) {
++                            continue;
++                        }
++                        // MinetickMod end
++
+                         // CraftBukkit start - Call event when pushing items into other inventories
+                         CraftItemStack oitemstack = CraftItemStack.asCraftMirror(this.splitStack(i, 1));
+ 
+@@ -270,7 +312,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                             this.d(8); // Delay hopper checks
+                             return false;
+                         }
+-                        ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), enumdirection);
++                        ItemStack itemstack1 = addItem(iinventory, possibleInventorySlot, CraftItemStack.asNMSCopy(event.getItem()), enumdirection); // MinetickMod
+ 
+                         if (itemstack1 == null || itemstack1.count == 0) {
+                             if (event.getItem().equals(oitemstack)) {
+@@ -390,6 +432,14 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         if (itemstack != null && b(iinventory, itemstack, i, enumdirection)) {
+             ItemStack itemstack1 = itemstack.cloneItemStack();
+             // ItemStack itemstack2 = addItem(ihopper, iinventory.splitStack(i, 1), (EnumDirection) null);
++
++            // MinetickMod start
++            int possibleInventorySlot = checkForPossibleInventorySlot(ihopper, iinventory.getItem(i), null);
++            if(possibleInventorySlot < 0) {
++                return false;
++            }
++            // MinetickMod end
++
+             // CraftBukkit start - Call event on collection of items from inventories into the hopper
+             CraftItemStack oitemstack = CraftItemStack.asCraftMirror(iinventory.splitStack(i, 1));
+ 
+@@ -415,7 +465,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+ 
+                 return false;
+             }
+-            ItemStack itemstack2 = addItem(ihopper, CraftItemStack.asNMSCopy(event.getItem()), null);
++            ItemStack itemstack2 = addItem(ihopper, possibleInventorySlot, CraftItemStack.asNMSCopy(event.getItem()), null); // MinetickMod
+ 
+             if (itemstack2 == null || itemstack2.count == 0) {
+                 if (event.getItem().equals(oitemstack)) {
+@@ -439,6 +489,13 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         if (entityitem == null) {
+             return false;
+         } else {
++            // MinetickMod start
++            int possibleInventorySlot = checkForPossibleInventorySlot(iinventory, entityitem.getItemStack(), null);
++            if(possibleInventorySlot < 0) {
++                return false;
++            }
++            // MinetickMod end
++
+             // CraftBukkit start
+             InventoryPickupItemEvent event = new InventoryPickupItemEvent(iinventory.getOwner().getInventory(), (org.bukkit.entity.Item) entityitem.getBukkitEntity());
+             entityitem.world.getServer().getPluginManager().callEvent(event);
+@@ -447,7 +504,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+             }
+             // CraftBukkit end
+             ItemStack itemstack = entityitem.getItemStack().cloneItemStack();
+-            ItemStack itemstack1 = addItem(iinventory, itemstack, (EnumDirection) null);
++            ItemStack itemstack1 = addItem(iinventory, possibleInventorySlot, itemstack, null); // MinetickMod
+ 
+             if (itemstack1 != null && itemstack1.count != 0) {
+                 entityitem.setItemStack(itemstack1);
+@@ -461,17 +518,29 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+     }
+ 
+     public static ItemStack addItem(IInventory iinventory, ItemStack itemstack, EnumDirection enumdirection) {
++    // MinetickMod start
++        return addItem(iinventory, -1, itemstack, enumdirection);
++    }
++
++    public static ItemStack addItem(IInventory iinventory, int possibleInventorySlot, ItemStack itemstack, EnumDirection enumdirection) {
++    // MinetickMod end
+         if (iinventory instanceof IWorldInventory && enumdirection != null) {
+             IWorldInventory iworldinventory = (IWorldInventory) iinventory;
+             int[] aint = iworldinventory.getSlotsForFace(enumdirection);
+ 
++            // MinetickMod start
++            if(possibleInventorySlot >= 0 && possibleInventorySlot < aint.length) {
++                itemstack = c(iinventory, itemstack, possibleInventorySlot, enumdirection);
++            }
++            // MinetickMod end
++
+             for (int i = 0; i < aint.length && itemstack != null && itemstack.count > 0; ++i) {
+                 itemstack = c(iinventory, itemstack, aint[i], enumdirection);
+             }
+         } else {
+             int j = iinventory.getSize();
+ 
+-            for (int k = 0; k < j && itemstack != null && itemstack.count > 0; ++k) {
++            for (int k = Math.max(possibleInventorySlot, 0); k < j && itemstack != null && itemstack.count > 0; ++k) { // MinetickMod - set start index
+                 itemstack = c(iinventory, itemstack, k, enumdirection);
+             }
+         }
+@@ -573,7 +642,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+     }
+ 
+     private static boolean a(ItemStack itemstack, ItemStack itemstack1) {
+-        return itemstack.getItem() != itemstack1.getItem() ? false : (itemstack.getData() != itemstack1.getData() ? false : (itemstack.count > itemstack.getMaxStackSize() ? false : ItemStack.equals(itemstack, itemstack1)));
++        return itemstack.getItem() != itemstack1.getItem() ? false : (itemstack.getData() != itemstack1.getData() ? false : (itemstack.count >= itemstack.getMaxStackSize() ? false : ItemStack.equals(itemstack, itemstack1))); // MinetickMod - can not merge when the itemcount is already >= getMaxStackSize
+     }
+ 
+     public double A() {
+-- 
+1.8.3.msysgit.0
+

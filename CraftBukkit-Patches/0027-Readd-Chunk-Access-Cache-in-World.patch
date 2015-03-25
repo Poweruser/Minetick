@@ -1,11 +1,11 @@
-From 56ef98ee183ff79c8281a858163e92bd4e7940ac Mon Sep 17 00:00:00 2001
+From 62a314ea5ee9bb1c101f314b173fbfd7f65a21ff Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:38:51 +0100
 Subject: [PATCH] Readd Chunk Access Cache in World
 
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index e1747a5..eef5ed9 100644
+index 90cdac4..8981a20 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -43,6 +43,18 @@ public class Chunk {
@@ -28,10 +28,10 @@ index e1747a5..eef5ed9 100644
      private int neighbors = 0x1 << 12;
  
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 94f38a3..be9c02b 100644
+index a318574..b399dc0 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-@@ -369,6 +369,7 @@ public class ChunkProviderServer implements IChunkProvider {
+@@ -364,6 +364,7 @@ public class ChunkProviderServer implements IChunkProvider {
                  if (!event.isCancelled()) {
  
                      if (chunk != null) {
@@ -40,7 +40,7 @@ index 94f38a3..be9c02b 100644
                          this.saveChunk(chunk);
                          this.saveChunkNOP(chunk);
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index ed76c8f..6b1c2be 100644
+index e321543..e680406 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -170,6 +170,10 @@ public abstract class World implements IBlockAccess {
@@ -100,7 +100,7 @@ index 9958221..79cfef1 100644
      private boolean O;
      private int emptyTime;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 0d80c41..9c134b9 100644
+index 621c89f..91bd616 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -184,6 +184,7 @@ public class CraftWorld implements World {
