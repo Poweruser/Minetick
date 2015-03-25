@@ -1,0 +1,44 @@
+From 0b46fe11d538d033ac73c0a5d6eece38af4e2269 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Wed, 25 Mar 2015 05:15:54 +0100
+Subject: [PATCH] Prevent Hoppers from Loading Chunks
+
+
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index f9a48e7..da10096 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -76,6 +76,10 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         copyOfItemBeingProcessed.count = 1;
+         return doesInventoryHaveEnoughSpaceForItem(iinventory, copyOfItemBeingProcessed, enumdirection);
+     }
++
++    private static boolean isPositionOfHopperInUse(World world, BlockPosition blockposition) {
++        return (world.isLoaded(blockposition) && !world.chunkProviderServer.unloadQueue.contains(blockposition.getX() >> 4, blockposition.getZ() >> 4));
++    }
+     // MinetickMod end
+ 
+     public TileEntityHopper() {}
+@@ -412,6 +416,11 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                 }
+             }
+         } else {
++            // MinetickMod start
++            if(ihopper instanceof TileEntity && !isPositionOfHopperInUse(ihopper.getWorld(), ((TileEntity) ihopper).position)) {
++                return false;
++            }
++            // MinetickMod end
+             Iterator iterator = a(ihopper.getWorld(), ihopper.A(), ihopper.B() + 1.0D, ihopper.C()).iterator();
+ 
+             while (iterator.hasNext()) {
+@@ -617,6 +626,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         int j = MathHelper.floor(d1);
+         int k = MathHelper.floor(d2);
+         BlockPosition blockposition = new BlockPosition(i, j, k);
++        if(!isPositionOfHopperInUse(world, blockposition)) { return null; } // MinetickMod
+         Block block = world.getType(blockposition).getBlock();
+ 
+         if (block.isTileEntity()) {
+-- 
+1.8.3.msysgit.0
+
