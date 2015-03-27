@@ -1,0 +1,103 @@
+From 51a87c9059fdfdce988231b38b95d88a8959b89b Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Fri, 27 Mar 2015 23:26:03 +0100
+Subject: [PATCH] Enable Concurrent Chunk Decoration
+
+
+diff --git a/src/main/java/net/minecraft/server/BiomeDecorator.java b/src/main/java/net/minecraft/server/BiomeDecorator.java
+index 97f2f50..20eefc9 100644
+--- a/src/main/java/net/minecraft/server/BiomeDecorator.java
++++ b/src/main/java/net/minecraft/server/BiomeDecorator.java
+@@ -61,9 +61,65 @@ public class BiomeDecorator {
+         this.L = true;
+     }
+ 
++    // MinetickMod start
++    protected BiomeDecorator createShallowCopy() {
++        return new BiomeDecorator(this);
++    }
++
++    protected BiomeDecorator(BiomeDecorator decorator) {
++        this.f = decorator.f;
++        this.g = decorator.g;
++        this.s = decorator.s;
++        this.t = decorator.t;
++        this.u = decorator.u;
++        this.v = decorator.v;
++        this.w = decorator.w;
++        this.x = decorator.x;
++        this.y = decorator.y;
++        this.z = decorator.z;
++        this.A = decorator.A;
++        this.B = decorator.B;
++        this.C = decorator.C;
++        this.D = decorator.D;
++        this.E = decorator.E;
++        this.F = decorator.F;
++        this.G = decorator.G;
++        this.H = decorator.H;
++        this.I = decorator.I;
++        this.J = decorator.J;
++        this.K = decorator.K;
++        this.L = decorator.L;
++    }
++    // MinetickMod end
++
+     public void a(World world, Random random, BiomeBase biomebase, BlockPosition blockposition) {
+         if (this.a != null) {
+-            throw new RuntimeException("Already decorating");
++            // MinetickMod start
++            BiomeDecorator decorator = this.createShallowCopy();
++            decorator.a = world;
++            String s = world.getWorldData().getGeneratorOptions();
++            if (s != null) {
++                decorator.d = CustomWorldSettingsFinal.CustomWorldSettings.a(s).b();
++            } else {
++                decorator.d = CustomWorldSettingsFinal.CustomWorldSettings.a("").b();
++            }
++            decorator.b = random;
++            decorator.c = blockposition;
++            decorator.h = new WorldGenMinable(Blocks.DIRT.getBlockData(), decorator.d.I);
++            decorator.i = new WorldGenMinable(Blocks.GRAVEL.getBlockData(), decorator.d.M);
++            decorator.j = new WorldGenMinable(Blocks.STONE.getBlockData().set(BlockStone.VARIANT, BlockStone.EnumStoneVariant.GRANITE), decorator.d.Q);
++            decorator.k = new WorldGenMinable(Blocks.STONE.getBlockData().set(BlockStone.VARIANT, BlockStone.EnumStoneVariant.DIORITE), decorator.d.U);
++            decorator.l = new WorldGenMinable(Blocks.STONE.getBlockData().set(BlockStone.VARIANT, BlockStone.EnumStoneVariant.ANDESITE), decorator.d.Y);
++            decorator.m = new WorldGenMinable(Blocks.COAL_ORE.getBlockData(), decorator.d.ac);
++            decorator.n = new WorldGenMinable(Blocks.IRON_ORE.getBlockData(), decorator.d.ag);
++            decorator.o = new WorldGenMinable(Blocks.GOLD_ORE.getBlockData(), decorator.d.ak);
++            decorator.p = new WorldGenMinable(Blocks.REDSTONE_ORE.getBlockData(), decorator.d.ao);
++            decorator.q = new WorldGenMinable(Blocks.DIAMOND_ORE.getBlockData(), decorator.d.as);
++            decorator.r = new WorldGenMinable(Blocks.LAPIS_ORE.getBlockData(), decorator.d.aw);
++            decorator.a(biomebase);
++            decorator.a = null;
++            decorator.b = null;
++            // MinetickMod end
+         } else {
+             this.a = world;
+             String s = world.getWorldData().getGeneratorOptions();
+diff --git a/src/main/java/net/minecraft/server/BiomeTheEndDecorator.java b/src/main/java/net/minecraft/server/BiomeTheEndDecorator.java
+index 4128e9c..c16af9b 100644
+--- a/src/main/java/net/minecraft/server/BiomeTheEndDecorator.java
++++ b/src/main/java/net/minecraft/server/BiomeTheEndDecorator.java
+@@ -8,6 +8,18 @@ public class BiomeTheEndDecorator extends BiomeDecorator {
+         this.M = new WorldGenEnder(Blocks.END_STONE);
+     }
+ 
++    // MinetickMod
++    public BiomeTheEndDecorator(BiomeTheEndDecorator decorator) {
++        super(decorator);
++        this.M = decorator.M;
++    }
++
++    @Override
++    protected BiomeDecorator createShallowCopy() {
++        return new BiomeTheEndDecorator(this);
++    }
++    // MinetickMod
++
+     protected void a(BiomeBase biomebase) {
+         this.a();
+         if (this.b.nextInt(5) == 0) {
+-- 
+1.8.3.msysgit.0
+
