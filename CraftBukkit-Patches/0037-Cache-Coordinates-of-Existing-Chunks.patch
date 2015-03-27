@@ -1,9 +1,31 @@
-From 84ed41f176606ba82009f36985b0148afb8638a4 Mon Sep 17 00:00:00 2001
+From 9d5fc381355234c7506fd41d554672659a5db1c1 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 27 Mar 2015 01:06:48 +0100
+Date: Fri, 27 Mar 2015 01:48:31 +0100
 Subject: [PATCH] Cache Coordinates of Existing Chunks
 
 
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index b399dc0..f773f5e 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -42,6 +42,17 @@ public class ChunkProviderServer implements IChunkProvider {
+ 
+     // MinetickMod start
+     private MinetickEmptyChunk mtEmptyChunk;
++    private ChunkRegionLoader checkedRegionLoader = null;
++
++    public boolean doesChunkExist(int x, int z) {
++        if(this.checkedRegionLoader == null && this.chunkLoader instanceof ChunkRegionLoader) {
++            this.checkedRegionLoader = (ChunkRegionLoader) this.chunkLoader;
++        }
++        if(this.checkedRegionLoader != null) {
++            return  this.checkedRegionLoader.chunkExists(this.world, x, z);
++        }
++        return false;
++    }
+     // MinetickMod end
+ 
+     public ChunkProviderServer(WorldServer worldserver, IChunkLoader ichunkloader, IChunkProvider ichunkprovider) {
 diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
 index 32dfa8d..cbcacc4 100644
 --- a/src/main/java/net/minecraft/server/RegionFile.java
