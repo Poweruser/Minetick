@@ -1,0 +1,65 @@
+From 84ed41f176606ba82009f36985b0148afb8638a4 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Fri, 27 Mar 2015 01:06:48 +0100
+Subject: [PATCH] Cache Coordinates of Existing Chunks
+
+
+diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
+index 32dfa8d..cbcacc4 100644
+--- a/src/main/java/net/minecraft/server/RegionFile.java
++++ b/src/main/java/net/minecraft/server/RegionFile.java
+@@ -25,6 +25,18 @@ public class RegionFile {
+     private int g;
+     private long h;
+ 
++    // MinetickMod start
++    private boolean[] existingChunkCache = new boolean[1024];
++
++    private boolean checkExistingChunkCache(int i, int j) {
++        return this.existingChunkCache[i + j * 32];
++    }
++
++    private void addCoordinatesToCache(int i, int j) {
++        this.existingChunkCache[i + j * 32] = true;
++    }
++    // MinetickMod end
++
+     public RegionFile(File file) {
+         this.b = file;
+         this.g = 0;
+@@ -95,6 +107,11 @@ public class RegionFile {
+         if (this.d(i, j)) {
+             return false;
+         } else {
++            // MinetickMod start
++            if(checkExistingChunkCache(i, j)) {
++                return true;
++            }
++            // MinetickMod end
+             try {
+                 int k = this.e(i, j);
+ 
+@@ -117,6 +134,7 @@ public class RegionFile {
+ 
+                     byte b0 = this.c.readByte();
+                     if (b0 == 1 || b0 == 2) {
++                        this.addCoordinatesToCache(i, j); // MinetickMod
+                         return true;
+                     }
+                 }
+@@ -157,10 +175,12 @@ public class RegionFile {
+                             byte[] abyte;
+ 
+                             if (b0 == 1) {
++                                this.addCoordinatesToCache(i, j); // MinetickMod
+                                 abyte = new byte[j1 - 1];
+                                 this.c.read(abyte);
+                                 return new DataInputStream(new BufferedInputStream(new GZIPInputStream(new ByteArrayInputStream(abyte))));
+                             } else if (b0 == 2) {
++                                this.addCoordinatesToCache(i, j); // MinetickMod
+                                 abyte = new byte[j1 - 1];
+                                 this.c.read(abyte);
+                                 return new DataInputStream(new BufferedInputStream(new InflaterInputStream(new ByteArrayInputStream(abyte))));
+-- 
+1.8.3.msysgit.0
+
