@@ -1,6 +1,6 @@
-From c95ab05ec5a425547c193098ffb3ebbaa9884205 Mon Sep 17 00:00:00 2001
+From c7840d65614d0571d38815afa2bc20d4cad7cc71 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 28 Mar 2015 03:11:37 +0100
+Date: Sat, 28 Mar 2015 08:18:55 +0100
 Subject: [PATCH] mc dev imports
 
 
@@ -3328,10 +3328,10 @@ index 0000000..c061f58
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayInSettings.java b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
 new file mode 100644
-index 0000000..6e5fb18
+index 0000000..6bf4c3d
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,50 @@
 +package net.minecraft.server;
 +
 +import java.io.IOException;
@@ -3381,17 +3381,13 @@ index 0000000..6e5fb18
 +    public int e() {
 +        return this.e;
 +    }
-+
-+    public void a(PacketListener packetlistener) {
-+        this.a((PacketListenerPlayIn) packetlistener);
-+    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
 new file mode 100644
-index 0000000..4eaaacc
+index 0000000..6e368f5
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,119 @@
 +package net.minecraft.server;
 +
 +import com.google.common.collect.Lists;
@@ -3503,10 +3499,6 @@ index 0000000..4eaaacc
 +        return i + abyte.length;
 +    }
 +
-+    public void a(PacketListener packetlistener) {
-+        this.a((PacketListenerPlayOut) packetlistener);
-+    }
-+
 +    public static class ChunkMap {
 +
 +        public byte[] a;
@@ -3517,10 +3509,10 @@ index 0000000..4eaaacc
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
 new file mode 100644
-index 0000000..b897ee0
+index 0000000..63b90f7
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,79 @@
 +package net.minecraft.server;
 +
 +import java.io.IOException;
@@ -3598,10 +3590,6 @@ index 0000000..b897ee0
 +
 +    public void a(PacketListenerPlayOut packetlistenerplayout) {
 +        packetlistenerplayout.a(this);
-+    }
-+
-+    public void a(PacketListener packetlistener) {
-+        this.a((PacketListenerPlayOut) packetlistener);
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Pathfinder.java b/src/main/java/net/minecraft/server/Pathfinder.java
