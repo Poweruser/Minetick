@@ -1,0 +1,44 @@
+From 1b617e813638b0a98de5ed378c06a28a6d0c0651 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 28 Mar 2015 22:38:28 +0100
+Subject: [PATCH] Synchronize ChunkIOExecutor Access
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOExecutor.java b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOExecutor.java
+index e4fd9bc..5486b9f 100644
+--- a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOExecutor.java
++++ b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOExecutor.java
+@@ -9,20 +9,27 @@ import org.bukkit.craftbukkit.util.AsynchronousExecutor;
+ public class ChunkIOExecutor {
+     static final int BASE_THREADS = 1;
+     static final int PLAYERS_PER_THREAD = 50;
++    private static final Object lockObject = new Object(); // MinetickMod
+ 
+     private static final AsynchronousExecutor<QueuedChunk, Chunk, Runnable, RuntimeException> instance = new AsynchronousExecutor<QueuedChunk, Chunk, Runnable, RuntimeException>(new ChunkIOProvider(), BASE_THREADS);
+ 
+     public static Chunk syncChunkLoad(World world, ChunkRegionLoader loader, ChunkProviderServer provider, int x, int z) {
+-        return instance.getSkipQueue(new QueuedChunk(x, z, loader, world, provider));
++        synchronized(lockObject) { // MinetickMod
++            return instance.getSkipQueue(new QueuedChunk(x, z, loader, world, provider));
++        }
+     }
+ 
+     public static void queueChunkLoad(World world, ChunkRegionLoader loader, ChunkProviderServer provider, int x, int z, Runnable runnable) {
+-        instance.add(new QueuedChunk(x, z, loader, world, provider), runnable);
++        synchronized(lockObject) { // MinetickMod
++            instance.add(new QueuedChunk(x, z, loader, world, provider), runnable);
++        }
+     }
+ 
+     // Abuses the fact that hashCode and equals for QueuedChunk only use world and coords
+     public static void dropQueuedChunkLoad(World world, int x, int z, Runnable runnable) {
+-        instance.drop(new QueuedChunk(x, z, null, world, null), runnable);
++        synchronized(lockObject) { // MinetickMod
++            instance.drop(new QueuedChunk(x, z, null, world, null), runnable);
++        }
+     }
+ 
+     public static void adjustPoolSize(int players) {
+-- 
+1.8.3.msysgit.0
+
