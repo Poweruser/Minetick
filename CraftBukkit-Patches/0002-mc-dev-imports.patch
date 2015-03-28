@@ -1,6 +1,6 @@
-From 076f5c3fe8ec24a1c663a015ab6c842ce94de1f3 Mon Sep 17 00:00:00 2001
+From 402add0a8481d542aff3eb7bd60c83ef9d98c26e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 27 Mar 2015 21:16:15 +0100
+Date: Sat, 28 Mar 2015 01:36:27 +0100
 Subject: [PATCH] mc dev imports
 
 
@@ -3324,6 +3324,66 @@ index 0000000..c061f58
 +            }
 +
 +        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInSettings.java b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+new file mode 100644
+index 0000000..6e5fb18
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+@@ -0,0 +1,54 @@
++package net.minecraft.server;
++
++import java.io.IOException;
++
++public class PacketPlayInSettings implements Packet<PacketListenerPlayIn> {
++
++    private String a;
++    private int b;
++    private EntityHuman.EnumChatVisibility c;
++    private boolean d;
++    private int e;
++
++    public PacketPlayInSettings() {}
++
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        this.a = packetdataserializer.c(7);
++        this.b = packetdataserializer.readByte();
++        this.c = EntityHuman.EnumChatVisibility.a(packetdataserializer.readByte());
++        this.d = packetdataserializer.readBoolean();
++        this.e = packetdataserializer.readUnsignedByte();
++    }
++
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++        packetdataserializer.a(this.a);
++        packetdataserializer.writeByte(this.b);
++        packetdataserializer.writeByte(this.c.a());
++        packetdataserializer.writeBoolean(this.d);
++        packetdataserializer.writeByte(this.e);
++    }
++
++    public void a(PacketListenerPlayIn packetlistenerplayin) {
++        packetlistenerplayin.a(this);
++    }
++
++    public String a() {
++        return this.a;
++    }
++
++    public EntityHuman.EnumChatVisibility c() {
++        return this.c;
++    }
++
++    public boolean d() {
++        return this.d;
++    }
++
++    public int e() {
++        return this.e;
++    }
++
++    public void a(PacketListener packetlistener) {
++        this.a((PacketListenerPlayIn) packetlistener);
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Pathfinder.java b/src/main/java/net/minecraft/server/Pathfinder.java
