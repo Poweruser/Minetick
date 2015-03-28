@@ -1,0 +1,2339 @@
+From f4921ef7292e392ab14f26dc31508d39ba041c63 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 28 Mar 2015 09:31:47 +0100
+Subject: [PATCH] Rewrite of Player Chunk Management
+
+
+diff --git a/src/main/java/de/minetick/ChunkGenerationPolicy.java b/src/main/java/de/minetick/ChunkGenerationPolicy.java
+new file mode 100644
+index 0000000..66b74a4
+--- /dev/null
++++ b/src/main/java/de/minetick/ChunkGenerationPolicy.java
+@@ -0,0 +1,60 @@
++package de.minetick;
++
++import java.util.HashMap;
++import java.util.Map;
++
++import org.bukkit.WorldType;
++
++public class ChunkGenerationPolicy {
++
++    private static HashMap<WorldType, Double> rateMap = new HashMap<WorldType, Double>();
++
++    private int generatedChunks;
++    private int ticks;
++
++    public ChunkGenerationPolicy() {
++        this.reset();
++    }
++
++    public void generatedChunk() {
++        this.generatedChunks++;
++    }
++
++    public boolean isChunkGenerationCurrentlyAllowed(WorldType type) {
++        if(this.ticks > 0) {
++            Double entry = rateMap.get(type);
++            double maxRate;
++            if(entry == null) {
++                maxRate = getDefaultRate(type);
++            } else {
++                maxRate = entry.doubleValue();
++            }
++
++            double currentRate = (double) this.generatedChunks / (double) this.ticks;
++            if(currentRate < maxRate) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    public void reset() {
++        this.generatedChunks = 0;
++        this.ticks = 0;
++    }
++
++    public void newTick() {
++        if(this.ticks >= 20 * 5) {
++            this.reset();
++        }
++        this.ticks++;
++    }
++
++    public static void setRatesFromConfig(Map<WorldType, Double> rates) {
++        rateMap.putAll(rates);
++    }
++
++    public static double getDefaultRate(WorldType type) {
++        return type.equals(WorldType.FLAT) ? 1.0D : 0.5D;
++    }
++}
+diff --git a/src/main/java/de/minetick/MinetickChunkCoordComparator.java b/src/main/java/de/minetick/MinetickChunkCoordComparator.java
+new file mode 100644
+index 0000000..4aa6023
+--- /dev/null
++++ b/src/main/java/de/minetick/MinetickChunkCoordComparator.java
+@@ -0,0 +1,135 @@
++package de.minetick;
++
++import java.io.Serializable;
++import java.util.Comparator;
++
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.ChunkCoordIntPair;
++import net.minecraft.server.MathHelper;
++
++public class MinetickChunkCoordComparator implements Comparator<ChunkCoordIntPair>, Serializable {
++
++    private static final long serialVersionUID = 5600078159334305946L;
++    private int x;
++    private int z;
++
++    private double[] normaldirectionVector;
++    private boolean isXnormal;
++
++    private double[] directionVector;
++    private double[] tempMatching;
++
++    public MinetickChunkCoordComparator (EntityPlayer entityplayer) {
++        this.normaldirectionVector = new double[] { 1.0D, 0.0D };
++        this.directionVector = new double[] { 1.0D, 0.0D };
++        this.tempMatching = new double[] { 1.0D, 0.0D, 1.0D }; // x component, z component, squared vector length
++        this.isXnormal = true;
++        this.setPos(entityplayer);
++    }
++
++    public void setPos(EntityPlayer entityplayer) {
++        this.x = MathHelper.floor(entityplayer.locX) >> 4;
++        this.z = MathHelper.floor(entityplayer.locZ) >> 4;
++        this.calcDirectionVectors(entityplayer.yaw);
++        this.x -= (this.normaldirectionVector[0] * 1.5D);
++        this.z -= (this.normaldirectionVector[1] * 1.5D);
++    }
++
++    @Override
++    public int compare(ChunkCoordIntPair a, ChunkCoordIntPair b) {
++        double weightA = this.calcChunkWeight(a);
++        double weightB = this.calcChunkWeight(b);
++
++        if(weightA < weightB) {
++            return -1;
++        } else if(weightA > weightB) {
++            return 1;
++        } else {
++            return (a.x + a.z) - (b.x + b.z);
++        }
++    }
++
++    private void calcDirectionVectors(float yaw) {
++        this.directionVector[0] = Math.sin(Math.toRadians(yaw + 180.0f));
++        this.directionVector[1] = Math.cos(Math.toRadians(yaw));
++        double max;
++        double absX = Math.abs(this.directionVector[0]);
++        double absZ = Math.abs(this.directionVector[1]);
++        if(absX > absZ) {
++            this.isXnormal = true;
++            max = absX;
++        } else {
++            this.isXnormal = false;
++            max = absZ;
++        }
++        double factor = 1.0D / max;
++        this.normaldirectionVector[0] = this.directionVector[0] * factor;
++        this.normaldirectionVector[1] = this.directionVector[1] * factor;
++    }
++
++    private double[] getMatchingDirectionVector(ChunkCoordIntPair ccip) {
++        int abs = Math.abs(this.isXnormal ? ccip.x - this.x : ccip.z - this.z);
++        this.tempMatching[0] = this.normaldirectionVector[0] * abs;
++        this.tempMatching[1] = this.normaldirectionVector[1] * abs;
++        this.tempMatching[2] = (this.tempMatching[0] * this.tempMatching[0]) + (this.tempMatching[1] * this.tempMatching[1]);
++        return this.tempMatching;
++    }
++
++    private double calcDistance(ChunkCoordIntPair ccip, double[] matchingVector) {
++        double diffX = ccip.x - (this.x + matchingVector[0]);
++        double diffZ = ccip.z - (this.z + matchingVector[1]);
++        return diffX * diffX + diffZ * diffZ;
++    }
++
++    public enum ChunkPriority {
++        HIGHEST(5),
++        HIGH(3),
++        MODERATE(2),
++        LOW(1);
++
++        private int chunksPerPacket;
++
++        private ChunkPriority(int chunksPerPacket) {
++            this.chunksPerPacket = chunksPerPacket;
++        }
++
++        public void setChunksPerPacket(int count) {
++            this.chunksPerPacket = count;
++        }
++
++        public int getChunksPerPacket() {
++            return this.chunksPerPacket;
++        }
++
++        public static ChunkPriority findEntry(String key) {
++            try {
++                ChunkPriority pri = valueOf(key);
++                return pri;
++            } catch (IllegalArgumentException e) {
++                return null;
++            } catch (NullPointerException e) {
++                return null;
++            }
++        }
++    }
++
++    private double calcChunkWeight(ChunkCoordIntPair ccip) {
++        double[] matchingVector = this.getMatchingDirectionVector(ccip);
++        return (matchingVector[2] * 0.06D) + this.calcDistance(ccip, matchingVector);
++    }
++
++    public ChunkPriority getChunkPriority(ChunkCoordIntPair ccip) {
++        double chunkWeight = this.calcChunkWeight(ccip);
++        if(chunkWeight < 4.0D) {
++            return ChunkPriority.HIGHEST;
++        } else if(chunkWeight < 40.0D) {
++            return ChunkPriority.HIGH;
++        } else if(chunkWeight < 100.0D) {
++            return ChunkPriority.MODERATE;
++        } else {
++            return ChunkPriority.LOW;
++        }
++    }
++}
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 32b6e58..4dccf4d 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -8,6 +8,8 @@ import java.util.Collections;
+ import java.util.HashSet;
+ import java.util.LinkedList;
+ import java.util.List;
++import java.util.Set;
++import java.util.UUID;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Executors;
+@@ -32,15 +34,22 @@ import net.minecraft.server.EntityWither;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.NBTCompressedStreamTools;
+ import net.minecraft.server.NBTTagCompound;
++import net.minecraft.server.PacketPlayOutMapChunkBulk;
++import net.minecraft.server.PlayerChunkMap;
+ import net.minecraft.server.WorldServer;
+ 
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.configuration.file.FileConfiguration;
++import org.bukkit.configuration.file.YamlConfiguration;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.entity.EntityType;
+ 
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
+ import de.minetick.modcommands.TPSCommand;
+ import de.minetick.modcommands.WorldStatsCommand;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
+ import de.minetick.pathsearch.PathSearchJob;
+ import de.minetick.pathsearch.PathSearchThrottlerThread;
+ import de.minetick.profiler.Profiler;
+@@ -65,6 +74,9 @@ public class MinetickMod {
+     private HashSet<EntityType> entitiesWithOffloadedPathSearches;
+     private int minimumPathSearchOffloadDistance = 8;
+     private boolean bungeeCordSupport;
++    private File configFile;
++    private FileConfiguration modConfig;
++    private PacketBuilderThreadPool packetBuilderPool;
+ 
+     public MinetickMod() {
+         this.tickTimerObject = new TickTimer();
+@@ -74,6 +86,7 @@ public class MinetickMod {
+         this.notGeneratingWorlds = new HashSet<String>();
+         this.pathSearchThrottler = new PathSearchThrottlerThread();
+         this.entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
++        this.configFile = new File("viewdistance.yml");
+         instance = this;
+     }
+ 
+@@ -104,6 +117,20 @@ public class MinetickMod {
+             this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
+ 
+             this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
++
++            craftserver.getMinetickModPacketChunkRates(ChunkPriority.values());
++
++            try {
++                if(!this.configFile.exists()) {
++                    this.configFile.createNewFile();
++                }
++                this.modConfig = YamlConfiguration.loadConfiguration(this.configFile);
++            } catch (IOException e) {
++                log.error(e.toString());
++                e.printStackTrace();
++            }
++
++            this.packetBuilderPool = new PacketBuilderThreadPool(craftserver.getMinetickModPacketBuilderPoolSize());
+         }
+     }
+ 
+@@ -118,6 +145,7 @@ public class MinetickMod {
+     public void shutdown() {
+         this.timerService.shutdown();
+         this.pathSearchThrottler.shutdown();
++        this.packetBuilderPool.shutdown();
+         this.nbtFileService.shutdown();
+         while(!this.nbtFileService.isTerminated()) {
+             try {
+@@ -126,6 +154,14 @@ public class MinetickMod {
+                 }
+             } catch(InterruptedException e) {}
+         }
++        try {
++            if(this.modConfig != null) {
++                this.modConfig.save(this.configFile);
++            }
++        } catch (IOException e){
++            log.error("Exception while saving view distance settings");
++            e.printStackTrace();
++        }
+     }
+ 
+     public void checkTickTime(long tickTime) {
+@@ -255,4 +291,26 @@ public class MinetickMod {
+                 entity instanceof EntityFireworks || entity instanceof EntityComplexPart ||
+                 entity instanceof EntityWeather);
+     }
++
++    public static int minimumViewDistance() {
++        return 3;
++    }
++
++    public static boolean setPlayerViewDistance(UUID playerId, int viewDistance) {
++        if(instance.modConfig != null) {
++            instance.modConfig.set(playerId.toString(), Math.max(viewDistance, minimumViewDistance()));
++            return true;
++        }
++        return false;
++    }
++
++    public static int getPlayerViewDistance(UUID playerId, PlayerChunkMap map) {
++        int defaultVD = map.getViewDistance();
++        if(instance.modConfig != null) {
++            int playerVD = instance.modConfig.getInt(playerId.toString(), defaultVD);
++            playerVD = Math.max(playerVD, minimumViewDistance());
++            return Math.min(playerVD, defaultVD);
++        }
++        return defaultVD;
++    }
+ }
+diff --git a/src/main/java/de/minetick/PlayerChunkBuffer.java b/src/main/java/de/minetick/PlayerChunkBuffer.java
+new file mode 100644
+index 0000000..cbfd6a7
+--- /dev/null
++++ b/src/main/java/de/minetick/PlayerChunkBuffer.java
+@@ -0,0 +1,177 @@
++package de.minetick;
++
++import java.util.ArrayDeque;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.LinkedHashSet;
++import java.util.PriorityQueue;
++
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.ChunkCoordIntPair;
++import net.minecraft.server.MathHelper;
++import net.minecraft.server.PlayerChunkMap;
++import net.minecraft.server.PlayerChunkMap.PlayerChunk;
++
++public class PlayerChunkBuffer {
++    private LinkedHashSet<ChunkCoordIntPair> lowPriorityBuffer;
++    private LinkedHashSet<ChunkCoordIntPair> highPriorityBuffer;
++    public PriorityQueue<ChunkCoordIntPair> pq;
++    public MinetickChunkCoordComparator comp;
++    public int generatedChunks = 0;
++    public int loadedChunks = 0;
++    public int skippedChunks = 0;
++    public int enlistedChunks = 0;
++    private PlayerChunkManager playerChunkManager;
++    private PlayerChunkSendQueue sendQueue;
++    private int[] playerRegionCenter;
++    private int[] lastMovement;
++    private ArrayDeque<PlayerMovement> movement;
++    private int oldViewDistance;
++
++    public PlayerChunkBuffer(PlayerChunkManager playerChunkManager, EntityPlayer ent) {
++        this.playerChunkManager = playerChunkManager;
++        this.lowPriorityBuffer = new LinkedHashSet<ChunkCoordIntPair>();
++        this.highPriorityBuffer = new LinkedHashSet<ChunkCoordIntPair>();
++        this.sendQueue = new PlayerChunkSendQueue(this.playerChunkManager, ent);
++        this.comp = new MinetickChunkCoordComparator(ent);
++        this.pq = new PriorityQueue<ChunkCoordIntPair>(750, this.comp);
++        this.playerRegionCenter = new int[] { MathHelper.floor(ent.locX) >> 4, MathHelper.floor(ent.locZ) >> 4 };
++        this.lastMovement = new int[] { 0, 0 };
++        this.movement = new ArrayDeque<PlayerMovement>();
++        int savedVD = MinetickMod.getPlayerViewDistance(ent.getUniqueID(), this.playerChunkManager.getPlayerChunkMap());
++        this.oldViewDistance = savedVD;
++        ent.setViewDistance(savedVD);
++    }
++
++    public PlayerChunkSendQueue getPlayerChunkSendQueue() {
++        return this.sendQueue;
++    }
++
++    public Comparator<ChunkCoordIntPair> updatePos(EntityPlayer entityplayer) {
++        this.comp.setPos(entityplayer);
++        if(!this.movement.isEmpty()) {
++            PlayerChunkMap pcm = this.playerChunkManager.getPlayerChunkMap();
++            PlayerMovement movement = this.movement.poll();
++            while(!this.movement.isEmpty()) {
++                movement.addMovement(this.movement.poll(), true);
++            }
++            int newCenterX = movement.getCenterX();
++            int newCenterZ = movement.getCenterZ();
++            int diffX = movement.getMovementX();
++            int diffZ = movement.getMovementZ();
++            int oldCenterX = newCenterX - diffX;
++            int oldCenterZ = newCenterZ - diffZ;
++
++            if(diffX == 0 && diffZ == 0) {
++                return this.comp;
++            }
++            int currentViewDistance = entityplayer.getViewDistance();
++            int radius = Math.max(this.oldViewDistance, currentViewDistance);
++            int added = 0, removed = 0;
++            boolean areaExists = this.playerChunkManager.doAllCornersOfPlayerAreaExist(newCenterX, newCenterZ, radius);
++            for (int pointerX = newCenterX - radius; pointerX <= newCenterX + radius; pointerX++) {
++                for (int pointerZ = newCenterZ - radius; pointerZ <= newCenterZ + radius; pointerZ++) {
++                    ChunkCoordIntPair ccip;
++                    if(!PlayerChunkManager.isWithinRadius(pointerX, pointerZ, oldCenterX, oldCenterZ, this.oldViewDistance)) {
++                        ccip = new ChunkCoordIntPair(pointerX, pointerZ);
++                        if(!this.sendQueue.alreadyLoaded(ccip) && !this.sendQueue.isOnServer(ccip)) {
++                            added++;
++                            this.sendQueue.addToServer(pointerX, pointerZ);
++                            if(areaExists) {
++                                this.addHighPriorityChunk(ccip);
++                            } else {
++                                this.addLowPriorityChunk(ccip);
++                            }
++                        }
++                    }
++
++                    if(!PlayerChunkManager.isWithinRadius(pointerX - diffX, pointerZ - diffZ, newCenterX, newCenterZ, currentViewDistance)) {
++                        removed++;
++                        ccip = new ChunkCoordIntPair(pointerX - diffX, pointerZ - diffZ);
++                        this.sendQueue.removeFromServer(ccip.x, ccip.z);
++                        this.sendQueue.removeFromClient(ccip);
++                        this.remove(ccip);
++                        PlayerChunkMap.PlayerChunk playerchunk = pcm.a(ccip.x, ccip.z, false);
++                        if (playerchunk != null) {
++                            playerchunk.b(entityplayer);
++                        }
++                    }
++                }
++            }
++            if(this.oldViewDistance != currentViewDistance) {
++                this.oldViewDistance = currentViewDistance;
++            }
++        }
++        return this.comp;
++    }
++
++    public void clear() {
++        this.lowPriorityBuffer.clear();
++        this.highPriorityBuffer.clear();
++        this.pq.clear();
++        this.sendQueue.clear();
++        this.movement.clear();
++    }
++
++    public boolean isEmpty() {
++        return this.lowPriorityBuffer.isEmpty() && this.highPriorityBuffer.isEmpty();
++    }
++
++    public LinkedHashSet<ChunkCoordIntPair> getLowPriorityBuffer() {
++        return this.lowPriorityBuffer;
++    }
++
++    public LinkedHashSet<ChunkCoordIntPair> getHighPriorityBuffer() {
++        return this.highPriorityBuffer;
++    }
++
++    public void addLowPriorityChunk(ChunkCoordIntPair ccip) {
++        this.lowPriorityBuffer.add(ccip);
++    }
++
++    public void addHighPriorityChunk(ChunkCoordIntPair ccip) {
++        this.highPriorityBuffer.add(ccip);
++    }
++
++    public void remove(ChunkCoordIntPair ccip) {
++        this.lowPriorityBuffer.remove(ccip);
++        this.highPriorityBuffer.remove(ccip);
++    }
++
++    public boolean contains(ChunkCoordIntPair ccip) {
++        return this.lowPriorityBuffer.contains(ccip) || this.highPriorityBuffer.contains(ccip);
++    }
++
++    public PriorityQueue<ChunkCoordIntPair> getLowPriorityQueue() {
++        this.pq.clear();
++        this.pq.addAll(this.lowPriorityBuffer);
++        return this.pq;
++    }
++
++    public PriorityQueue<ChunkCoordIntPair> getHighPriorityQueue() {
++        this.pq.clear();
++        this.pq.addAll(this.highPriorityBuffer);
++        return this.pq;
++    }
++
++    public void resetCounters() {
++        this.generatedChunks = 0;
++        this.enlistedChunks = 0;
++        this.skippedChunks = 0;
++        this.loadedChunks = 0;
++    }
++
++    public void playerMoved(int newCenterX, int newCenterZ) {
++        this.lastMovement[0] = newCenterX - this.playerRegionCenter[0];
++        this.lastMovement[1] = newCenterZ - this.playerRegionCenter[1];
++        this.playerRegionCenter[0] = newCenterX;
++        this.playerRegionCenter[1] = newCenterZ;
++        this.movement.add(new PlayerMovement(this.playerRegionCenter, this.lastMovement));
++    }
++
++    public int[] getPlayerRegionCenter() {
++        return this.playerRegionCenter;
++    }
++}
+diff --git a/src/main/java/de/minetick/PlayerChunkManager.java b/src/main/java/de/minetick/PlayerChunkManager.java
+new file mode 100644
+index 0000000..181d28c
+--- /dev/null
++++ b/src/main/java/de/minetick/PlayerChunkManager.java
+@@ -0,0 +1,211 @@
++package de.minetick;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.LinkedList;
++import java.util.List;
++import java.util.Map;
++import java.util.PriorityQueue;
++
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import de.minetick.packetbuilder.PacketBuilderChunkDataBulk;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
++import de.minetick.packetbuilder.jobs.PBJobPlayOutMapChunkBulk;
++
++import net.minecraft.server.Chunk;
++import net.minecraft.server.ChunkCoordIntPair;
++import net.minecraft.server.PacketPlayOutMapChunkBulk;
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.PlayerChunkMap;
++import net.minecraft.server.PlayerChunkMap.PlayerChunk;
++import net.minecraft.server.TileEntity;
++import net.minecraft.server.WorldData;
++import net.minecraft.server.WorldServer;
++import net.minecraft.server.WorldType;
++
++public class PlayerChunkManager {
++
++    private List<EntityPlayer> shuffleList = Collections.synchronizedList(new LinkedList<EntityPlayer>());
++    private boolean skipHeavyCalculations = false;
++    private int chunkCreated = 0;
++    private WorldServer world;
++    private PlayerChunkMap pcm;
++
++    private Map<String, PlayerChunkBuffer> playerBuff = new HashMap<String, PlayerChunkBuffer>();
++
++    public PlayerChunkManager(WorldServer world, PlayerChunkMap pcm) {
++        this.world = world;
++        this.pcm = pcm;
++    }
++
++    public PlayerChunkMap getPlayerChunkMap() {
++        return this.pcm;
++    }
++
++    private String getMapKey(EntityPlayer entity) {
++        return entity.getBukkitEntity().getName();
++    }
++
++    public PlayerChunkBuffer getChunkBuffer(EntityPlayer entityplayer) {
++        return this.playerBuff.get(this.getMapKey(entityplayer));
++    }
++
++    public PlayerChunkBuffer addPlayer(EntityPlayer entityplayer) {
++        String mapkey = this.getMapKey(entityplayer);
++        PlayerChunkBuffer buff = this.playerBuff.get(mapkey);
++        if(buff == null) {
++            buff = new PlayerChunkBuffer(this, entityplayer);
++            synchronized(this.playerBuff) {
++                this.playerBuff.put(mapkey, buff);
++            }
++        } else {
++            buff.clear();
++        }
++        this.shuffleList.add(entityplayer);
++        return buff;
++    }
++
++    public void removePlayer(EntityPlayer entityplayer) {
++        this.shuffleList.remove(entityplayer);
++        String mapkey = this.getMapKey(entityplayer);
++        PlayerChunkBuffer buff = this.playerBuff.get(mapkey);
++        if(buff != null) {
++            buff.clear();
++        }
++        synchronized(this.playerBuff) {
++            this.playerBuff.remove(mapkey);
++        }
++    }
++
++    public boolean skipChunkGeneration() {
++        return this.skipHeavyCalculations;
++    }
++
++    public void skipChunkGeneration(boolean skip) {
++        this.skipHeavyCalculations = skip;
++    }
++
++    public boolean alreadyEnqueued(EntityPlayer entityplayer, ChunkCoordIntPair ccip) {
++        PlayerChunkBuffer buff = this.playerBuff.get(this.getMapKey(entityplayer));
++        if(buff == null) {
++            return false;
++        }
++        if(buff.contains(ccip)) {
++            return true;
++        }
++        return false;
++    }
++
++    public int updatePlayers(ChunkGenerationPolicy chunkGenerationPolicy) {
++        int allGenerated = 0;
++        EntityPlayer[] array = this.shuffleList.toArray(new EntityPlayer[0]);
++        for(int i = 0; i < array.length; i++) {
++            EntityPlayer entityplayer = array[i];
++            PlayerChunkBuffer buff = this.playerBuff.get(this.getMapKey(entityplayer));
++            if(buff == null) {
++                continue;
++            }
++            buff.resetCounters();
++            buff.updatePos(entityplayer);
++            int playerChunkPosX = buff.getPlayerRegionCenter()[0];
++            int playerChunkPosZ = buff.getPlayerRegionCenter()[1];
++
++            // High priority chunks
++            PriorityQueue<ChunkCoordIntPair> queue = buff.getHighPriorityQueue();
++            while(queue.size() > 0 && buff.loadedChunks < (this.skipHeavyCalculations ? 5: 15)) {
++                ChunkCoordIntPair ccip = queue.poll();
++                if(buff.getPlayerChunkSendQueue().isOnServer(ccip) && !buff.getPlayerChunkSendQueue().alreadyLoaded(ccip)) {
++                    PlayerChunkMap.PlayerChunk c = this.pcm.a(ccip.x, ccip.z, true);
++                    c.a(entityplayer);
++                    if(buff.getPlayerChunkSendQueue().queueForSend(c, entityplayer)) {
++                        buff.loadedChunks++;
++                    }
++                }
++                buff.remove(ccip);
++            }
++
++            // Low priority chunks
++            queue = buff.getLowPriorityQueue();
++            while(queue.size() > 0 && buff.loadedChunks < 5 && !this.skipHeavyCalculations) {
++                ChunkCoordIntPair ccip = queue.poll();
++                if(buff.getPlayerChunkSendQueue().isOnServer(ccip) && !buff.getPlayerChunkSendQueue().alreadyLoaded(ccip)) {
++                    boolean chunkExists = this.world.chunkProviderServer.doesChunkExist(ccip.x, ccip.z);
++                    if(!this.skipHeavyCalculations && (chunkExists || chunkGenerationPolicy.isChunkGenerationCurrentlyAllowed(this.world.getWorld().getWorldType()))) {
++                        PlayerChunkMap.PlayerChunk c = this.pcm.a(ccip.x, ccip.z, true);
++                        c.a(entityplayer);
++                        if(c.getAndResetIsNew()) {
++                            buff.generatedChunks++;
++                            allGenerated++;
++                            chunkGenerationPolicy.generatedChunk();
++                        } else {
++                            buff.loadedChunks++;
++                        }
++                        buff.getPlayerChunkSendQueue().queueForSend(c, entityplayer);
++                        buff.remove(ccip);
++                    } else {
++                        buff.skippedChunks++;
++                    }
++                } else {
++                    buff.remove(ccip);
++                }
++            }
++            PlayerChunkSendQueue chunkQueue = buff.getPlayerChunkSendQueue();
++            int previouslyskipped = chunkQueue.requeuePreviouslySkipped();
++            if(buff.generatedChunks > 0 || buff.loadedChunks > 0 || buff.enlistedChunks > 0 || previouslyskipped > 0) {
++                chunkQueue.sort(entityplayer);
++            }
++            if(buff.generatedChunks > 0) {
++                this.shuffleList.remove(entityplayer);
++                this.shuffleList.add(entityplayer);
++            }
++
++            int skipped = 0;
++            PacketBuilderChunkDataBulk chunkData = new PacketBuilderChunkDataBulk();
++            while(chunkQueue.hasChunksQueued() && chunkData.size() < 5 && skipped < (20 + previouslyskipped)) {
++                ChunkCoordIntPair chunkcoordintpair = chunkQueue.peekFirst();
++                if (chunkcoordintpair != null && chunkQueue.isOnServer(chunkcoordintpair)) {
++                    if(this.world.chunkProviderServer.isChunkLoaded(chunkcoordintpair.x, chunkcoordintpair.z)) {
++                        Chunk chunk = this.world.getChunkAt(chunkcoordintpair.x, chunkcoordintpair.z);
++                        if(chunk.isReady()) {
++                            chunkData.addChunk(chunk);
++                            chunkQueue.removeFirst(true);
++                            ChunkPriority priority = buff.comp.getChunkPriority(chunkcoordintpair);
++                            if(chunkData.size() >= priority.getChunksPerPacket()) {
++                                break;
++                            }
++                        } else {
++                            chunkQueue.skipFirst();
++                            skipped++;
++                        }
++                    } else {
++                        chunkQueue.skipFirst();
++                        skipped++;
++                    }
++                } else {
++                    chunkQueue.removeFirst(false);
++                }
++            }
++            if (!chunkData.isEmpty()) {
++                PacketBuilderThreadPool.addJobStatic(new PBJobPlayOutMapChunkBulk(entityplayer.playerConnection, chunkData, chunkQueue));
++            }
++        }
++        return allGenerated;
++    }
++
++    public static boolean isWithinRadius(int positionx, int positionz, int centerx, int centerz, int radius) {
++        int distancex = positionx - centerx;
++        int distancez = positionz - centerz;
++
++        return (distancex >= -radius && distancex <= radius) ? (distancez >= -radius && distancez <= radius) : false;
++    }
++
++    public boolean doAllCornersOfPlayerAreaExist(int x, int z, int radius) {
++        boolean exists = this.world.chunkExists(x - radius, z - radius);
++        exists = exists && this.world.chunkExists(x + radius, z + radius);
++        if(!exists) { return false; }
++        exists = exists && this.world.chunkExists(x - radius, z + radius);
++        return exists && this.world.chunkExists(x + radius, z - radius);
++    }
++}
+diff --git a/src/main/java/de/minetick/PlayerChunkSendQueue.java b/src/main/java/de/minetick/PlayerChunkSendQueue.java
+new file mode 100644
+index 0000000..c4d6685
+--- /dev/null
++++ b/src/main/java/de/minetick/PlayerChunkSendQueue.java
+@@ -0,0 +1,160 @@
++package de.minetick;
++
++import java.util.Collections;
++import java.util.Iterator;
++import java.util.LinkedHashSet;
++import java.util.LinkedList;
++
++import org.bukkit.craftbukkit.util.LongHash;
++
++import net.minecraft.server.ChunkCoordIntPair;
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.PlayerChunkMap;
++import net.minecraft.server.PlayerChunkMap.PlayerChunk;
++
++public class PlayerChunkSendQueue {
++
++    private LinkedHashSet<Long> serverData; // what it should be
++    private LinkedHashSet<Long> clientData; // sent Data
++    private LinkedList<ChunkCoordIntPair> queue; // waiting to be sent
++    private LinkedList<ChunkCoordIntPair> skippedChunks;
++    private PlayerChunkManager pcm;
++    private EntityPlayer player;
++
++    public PlayerChunkSendQueue(PlayerChunkManager pcm, EntityPlayer entityplayer) {
++        this.pcm = pcm;
++        this.serverData = new LinkedHashSet<Long>();
++        this.clientData = new LinkedHashSet<Long>();
++        this.queue = new LinkedList<ChunkCoordIntPair>();
++        this.skippedChunks = new LinkedList<ChunkCoordIntPair>();
++        this.player = entityplayer;
++    }
++
++    public void sort(EntityPlayer entityplayer) {
++        MinetickChunkCoordComparator comp = new MinetickChunkCoordComparator(entityplayer);
++        Collections.sort(this.queue, comp);
++        Collections.sort(this.player.chunkCoordIntPairQueue, comp);
++    }
++
++    public boolean hasChunksQueued() {
++        return this.queue.size() > 0;
++    }
++
++    public boolean queueForSend(PlayerChunkMap.PlayerChunk playerchunk, EntityPlayer entityplayer) {
++        boolean alreadySent = false, onServer = false, aboutToSend = false;
++        ChunkCoordIntPair ccip = playerchunk.getLocation();
++        alreadySent = this.clientData.contains(LongHash.toLong(ccip.x, ccip.z));
++        onServer = this.serverData.contains(LongHash.toLong(ccip.x, ccip.z));
++        aboutToSend = this.isAboutToSend(ccip);
++        if(onServer) {
++            if(!aboutToSend && !alreadySent) {
++                this.queue.add(ccip);
++                this.player.chunkCoordIntPairQueue.add(ccip);
++                return true;
++            }
++        } else {
++            playerchunk.b(entityplayer);
++            this.removeFromClient(ccip);
++        }
++        return false;
++    }
++
++    public void addToServer(int x, int z) {
++        this.serverData.add(LongHash.toLong(x, z));
++    }
++
++    public void removeFromServer(int x, int z) {
++        this.serverData.remove(LongHash.toLong(x, z));
++    }
++
++    public void removeFromClient(ChunkCoordIntPair ccip) {
++        this.clientData.remove(LongHash.toLong(ccip.x, ccip.z));
++        this.removeFromQueue(ccip);
++    }
++
++    public void removeFromQueue(ChunkCoordIntPair ccip) {
++        this.queue.remove(ccip);
++        this.skippedChunks.remove(ccip);
++        this.player.chunkCoordIntPairQueue.remove(ccip);
++    }
++
++    public ChunkCoordIntPair peekFirst() {
++        ChunkCoordIntPair ccip = null;
++        boolean foundOne = false;
++        while(!foundOne && !this.queue.isEmpty()) {
++            ccip = this.queue.peekFirst();
++            if(!this.isOnServer(ccip)) {
++                this.removeFromQueue(ccip);
++                ccip = null;
++            } else {
++                foundOne = true;
++            }
++        }
++        return ccip;
++    }
++
++    public void removeFirst(boolean ok) {
++        if(!this.queue.isEmpty()) {
++            ChunkCoordIntPair ccip = this.queue.removeFirst();
++            if(ok && ccip != null) {
++                this.clientData.add(LongHash.toLong(ccip.x, ccip.z));
++                this.player.chunkCoordIntPairQueue.remove(ccip);
++            }
++        }
++    }
++
++    public void skipFirst() {
++        if(!this.queue.isEmpty()) {
++            ChunkCoordIntPair ccip = this.queue.removeFirst();
++            this.player.chunkCoordIntPairQueue.remove(ccip);
++            if(ccip != null && this.isOnServer(ccip) && !this.isChunkSent(ccip)) {
++                 this.skippedChunks.addLast(ccip);
++            }
++        }
++    }
++
++    public int requeuePreviouslySkipped() {
++        int count = 0;
++        while(this.skippedChunks.size() > 0) {
++            ChunkCoordIntPair ccip = this.skippedChunks.removeFirst();
++            if(ccip != null && this.isOnServer(ccip) && !this.alreadyLoaded(ccip)) {
++                count++;
++                this.queue.addFirst(ccip);
++                this.player.chunkCoordIntPairQueue.add(ccip);
++            }
++        }
++        return count;
++    }
++
++    public void clear() {
++        this.serverData.clear();
++        this.clientData.clear();
++        this.queue.clear();
++        this.skippedChunks.clear();
++        this.player.chunkCoordIntPairQueue.clear();
++    }
++
++    public boolean isChunkSent(ChunkCoordIntPair ccip) {
++        return this.clientData.contains(LongHash.toLong(ccip.x, ccip.z));
++    }
++
++    public boolean isAboutToSend(ChunkCoordIntPair location) {
++        return this.skippedChunks.contains(location) || this.queue.contains(location);
++    }
++
++    public boolean alreadyLoaded(ChunkCoordIntPair ccip) {
++        return this.isChunkSent(ccip) || this.isAboutToSend(ccip);
++    }
++
++    public boolean isOnServer(ChunkCoordIntPair ccip) {
++        return this.isOnServer(ccip.x, ccip.z);
++    }
++
++    public boolean isOnServer(int x, int z) {
++        return this.serverData.contains(LongHash.toLong(x, z));
++    }
++
++    public int size() {
++        return this.queue.size();
++    }
++}
+diff --git a/src/main/java/de/minetick/PlayerMovement.java b/src/main/java/de/minetick/PlayerMovement.java
+new file mode 100644
+index 0000000..abe6962
+--- /dev/null
++++ b/src/main/java/de/minetick/PlayerMovement.java
+@@ -0,0 +1,48 @@
++package de.minetick;
++
++public class PlayerMovement {
++
++    private int centerX;
++    private int centerZ;
++    private int movementX;
++    private int movementZ;
++
++    public PlayerMovement(int centerX, int centerZ, int movementX, int movementZ) {
++        this.centerX = centerX;
++        this.centerZ = centerZ;
++        this.movementX = movementX;
++        this.movementZ = movementZ;
++    }
++
++    public PlayerMovement(int[] center, int[] movement) {
++        this.centerX = center[0];
++        this.centerZ = center[1];
++        this.movementX = movement[0];
++        this.movementZ = movement[1];
++    }
++
++    public void addMovement(PlayerMovement previousmovement, boolean updateCenter) {
++        this.movementX += previousmovement.getMovementX();
++        this.movementZ += previousmovement.getMovementZ();
++        if(updateCenter) {
++            this.centerX = previousmovement.getCenterX();
++            this.centerZ = previousmovement.getCenterZ();
++        }
++    }
++
++    public int getMovementX() {
++        return this.movementX;
++    }
++
++    public int getMovementZ() {
++        return this.movementZ;
++    }
++
++    public int getCenterX() {
++        return this.centerX;
++    }
++
++    public int getCenterZ() {
++        return this.centerZ;
++    }
++}
+diff --git a/src/main/java/de/minetick/WorldTicker.java b/src/main/java/de/minetick/WorldTicker.java
+index 4f05b4c..8f7ab2c 100644
+--- a/src/main/java/de/minetick/WorldTicker.java
++++ b/src/main/java/de/minetick/WorldTicker.java
+@@ -34,6 +34,9 @@ public class WorldTicker implements Runnable {
+         }
+         worldProfile.stop(WorldProfileSection.UPDATE_PLAYERS);
+ 
++        worldProfile.start(WorldProfileSection.CHUNK_LOADING);
++        this.worldToTick.loadAndGenerateChunks();
++        worldProfile.stop(WorldProfileSection.CHUNK_LOADING);
+         worldProfile.stop();
+         worldProfile.setCurrentPlayerNumber(this.worldToTick.players.size());
+         this.worldToTick.setLastTickAvg(worldProfile.getLastThreadAvg());
+diff --git a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java b/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
+index 70a7c8e..f44aedd 100644
+--- a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
++++ b/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
+@@ -83,6 +83,8 @@ public class WorldStatsCommand extends Command {
+                     sb.append(ChatColor.RED);
+                     sb.append("(");
+                     sb.append(worldProfile.getLastSectionAvg(WorldProfileSection.DO_TICK));
++                    sb.append("|");
++                    sb.append(worldProfile.getLastSectionAvg(WorldProfileSection.CHUNK_LOADING));
+                     sb.append(")  ");
+                     sb.append(ChatColor.GREEN);
+                     sb.append(worldDetails.entities);
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderBuffer.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderBuffer.java
+new file mode 100644
+index 0000000..692ec25
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderBuffer.java
+@@ -0,0 +1,46 @@
++package de.minetick.packetbuilder;
++
++import java.lang.ref.WeakReference;
++import java.util.ArrayList;
++
++public class PacketBuilderBuffer {
++
++    private ArrayList<WeakReference<byte[]>> sendBufferCache = new ArrayList<WeakReference<byte[]>>();
++
++    public PacketBuilderBuffer() {}
++
++    public void offerSendBuffer(byte[] array) {
++        synchronized(this.sendBufferCache) {
++            this.sendBufferCache.add(new WeakReference<byte[]>(array));
++        }
++    }
++
++    public byte[] requestSendBuffer(int length) {
++        synchronized(this.sendBufferCache) {
++            return this.checkInList(this.sendBufferCache, length);
++        }
++    }
++
++    public void clear() {
++        synchronized(this.sendBufferCache) {
++            this.sendBufferCache.clear();
++        }
++    }
++
++    private byte[] checkInList(ArrayList<WeakReference<byte[]>> list, int length) {
++        WeakReference<byte[]> ref;
++        byte[] array;
++        int size = list.size();
++        for(int i = size - 1; i >= 0; i--) {
++            ref = list.get(i);
++            array = ref.get();
++            if(array == null) {
++                list.remove(i);
++            } else if(array.length == length) {
++                list.remove(i);
++                return array;
++            }
++        }
++        return new byte[length];
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkData.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkData.java
+new file mode 100644
+index 0000000..ef299ba
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkData.java
+@@ -0,0 +1,57 @@
++package de.minetick.packetbuilder;
++
++import java.util.ArrayList;
++import java.util.List;
++
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.Chunk;
++import net.minecraft.server.Packet;
++import net.minecraft.server.PlayerConnection;
++import net.minecraft.server.TileEntity;
++
++public class PacketBuilderChunkData {
++
++    private Chunk chunk;
++    private List<TileEntity> tileEntites;
++    private boolean sendAllFlag;
++    private int sectionBitmask;
++
++    public PacketBuilderChunkData(Chunk chunk, boolean sendAllFlag, int sectionBitmask) {
++        this.chunk = chunk;
++        this.sendAllFlag = sendAllFlag;
++        this.sectionBitmask = sectionBitmask;
++        this.tileEntites = new ArrayList<TileEntity>(this.chunk.tileEntities.values());
++    }
++
++    public Chunk getChunk() {
++        return this.chunk;
++    }
++
++    public boolean getSendAllFlag() {
++        return this.sendAllFlag;
++    }
++
++    public int getSectionBitmask() {
++        return this.sectionBitmask;
++    }
++
++    public void sendTileEntities(PlayerConnection playerconnection) {
++        if(this.sectionBitmask == 0) {
++            return;
++        }
++        for(TileEntity tileEntity: this.tileEntites) {
++            int sectionId = tileEntity.getPosition().getZ() >> 4;
++            if((this.sectionBitmask & (1 << sectionId)) != 0) {
++                Packet packet = tileEntity.getUpdatePacket();
++                if(packet != null) {
++                    playerconnection.sendPacket(packet);
++                }
++            }
++        }
++    }
++
++    public void clear() {
++        this.tileEntites.clear();
++        this.chunk = null;
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkDataBulk.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkDataBulk.java
+new file mode 100644
+index 0000000..3003774
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderChunkDataBulk.java
+@@ -0,0 +1,84 @@
++package de.minetick.packetbuilder;
++
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.Map.Entry;
++
++import de.minetick.PlayerChunkSendQueue;
++
++import net.minecraft.server.Chunk;
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.Packet;
++import net.minecraft.server.PlayerConnection;
++import net.minecraft.server.TileEntity;
++
++public class PacketBuilderChunkDataBulk {
++
++    private Map<Chunk, List<TileEntity>> map;
++
++    public PacketBuilderChunkDataBulk() {
++        this.map = new HashMap<Chunk, List<TileEntity>>();
++    }
++
++    public void addChunk(Chunk chunk) {
++        List<TileEntity> list = new ArrayList<TileEntity>();
++        list.addAll(chunk.tileEntities.values());
++        this.map.put(chunk, list);
++    }
++
++    public boolean verifyLoadedChunks(PlayerChunkSendQueue pcsq) {
++        boolean allOk = !this.isEmpty();
++        Iterator<Chunk> iterator = this.map.keySet().iterator();
++        while(iterator.hasNext()) {
++            Chunk chunk = iterator.next();
++            if(!pcsq.isOnServer(chunk.locX, chunk.locZ)) {
++                List<TileEntity> list = this.map.get(chunk);
++                list.clear();
++                iterator.remove();
++                allOk = false;
++            }
++        }
++        return allOk;
++    }
++
++    public void sendTileEntities(PlayerConnection connection) {
++        for(List<TileEntity> list: this.map.values()) {
++            for(TileEntity tileEntity: list) {
++                if (tileEntity != null) {
++                    Packet packet = tileEntity.getUpdatePacket();
++                    if(packet != null) {
++                        connection.sendPacket(packet);
++                    }
++                }
++            }
++        }
++    }
++
++    public void queueChunksForTracking(EntityPlayer entityplayer, PlayerChunkSendQueue sendQueue) {
++        entityplayer.chunksForTracking.addAll(this.map.keySet());
++    }
++
++    public void clear() {
++        Iterator<Entry<Chunk, List<TileEntity>>> iterator = this.map.entrySet().iterator();
++        while(iterator.hasNext()) {
++            Entry<Chunk, List<TileEntity>> entry = iterator.next();
++            entry.getValue().clear();
++            iterator.remove();
++        }
++    }
++
++    public boolean isEmpty() {
++        return this.map.isEmpty();
++    }
++
++    public List<Chunk> getChunks() {
++        return new ArrayList<Chunk>(this.map.keySet());
++    }
++
++    public int size() {
++        return this.map.size();
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderJobInterface.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderJobInterface.java
+new file mode 100644
+index 0000000..a013993
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderJobInterface.java
+@@ -0,0 +1,6 @@
++package de.minetick.packetbuilder;
++
++public interface PacketBuilderJobInterface extends Runnable {
++
++    public void assignBuildBuffer(PacketBuilderBuffer pbb);
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderThread.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderThread.java
+new file mode 100644
+index 0000000..6eed711
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderThread.java
+@@ -0,0 +1,33 @@
++package de.minetick.packetbuilder;
++
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++import de.minetick.MinetickThreadFactory;
++
++public class PacketBuilderThread {
++
++    private int id;
++    private static volatile int threadCounter = 0;
++    private ExecutorService thread;
++    private PacketBuilderBuffer buildBuffer;
++
++    public PacketBuilderThread() {
++        this.id = threadCounter++;
++        this.thread = Executors.newSingleThreadExecutor(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_PacketBuilder-" + this.id));
++        this.buildBuffer = new PacketBuilderBuffer();
++    }
++
++    public boolean addJob(PacketBuilderJobInterface job) {
++        if(!this.thread.isShutdown()) {
++            job.assignBuildBuffer(this.buildBuffer);
++            this.thread.submit(job);
++            return true;
++        }
++        return false;
++    }
++
++    public void shutdown() {
++        this.thread.shutdown();
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/PacketBuilderThreadPool.java b/src/main/java/de/minetick/packetbuilder/PacketBuilderThreadPool.java
+new file mode 100644
+index 0000000..0c0b988
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/PacketBuilderThreadPool.java
+@@ -0,0 +1,71 @@
++package de.minetick.packetbuilder;
++
++import java.util.ArrayList;
++
++public class PacketBuilderThreadPool {
++
++    private boolean active;
++    private ArrayList<PacketBuilderThread> threads;
++    private static PacketBuilderThreadPool instance;
++    private int jobAssignmentCounter = 0;
++    private Object lockObject = new Object();
++
++    public PacketBuilderThreadPool(int poolsize) {
++        instance = this;
++        this.threads = new ArrayList<PacketBuilderThread>();
++        adjustPoolSize(poolsize);
++        this.active = true;
++    }
++
++    public static void addJobStatic(PacketBuilderJobInterface job) {
++        if(instance != null) {
++            instance.addJob(job);
++        }
++    }
++
++    public void addJob(PacketBuilderJobInterface job) {
++        if(this.active && !this.threads.isEmpty()) {
++            boolean jobAdded = false;
++            synchronized(this.lockObject) {
++                int attempts = 0;
++                while(!jobAdded && attempts < this.threads.size()) {
++                    attempts++;
++                    this.jobAssignmentCounter = (this.jobAssignmentCounter + 1) % this.threads.size();
++                    jobAdded = this.threads.get(this.jobAssignmentCounter).addJob(job);
++                }
++            }
++        }
++    }
++
++    public static void shutdownStatic() {
++        if(instance != null) {
++            instance.shutdown();
++        }
++    }
++
++    public void shutdown() {
++        this.active = false;
++        for(PacketBuilderThread thread : this.threads) {
++            thread.shutdown();
++        }
++    }
++
++    private static int capInputSize(int size) {
++        int newSize = Math.max(1, size);
++        newSize = Math.min(newSize, 32);
++        return newSize;
++    }
++
++    public static void adjustPoolSize(int size) {
++        if(instance != null) {
++            int newSize = capInputSize(size);
++            while(instance.threads.size() < newSize) {
++                instance.threads.add(new PacketBuilderThread());
++            }
++            while(instance.threads.size() > newSize) {
++                PacketBuilderThread thread = instance.threads.remove(instance.threads.size() - 1);
++                thread.shutdown();
++            }
++        }
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunk.java b/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunk.java
+new file mode 100644
+index 0000000..b7fee00
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunk.java
+@@ -0,0 +1,106 @@
++package de.minetick.packetbuilder.jobs;
++
++import java.util.ArrayList;
++
++import net.minecraft.server.Chunk;
++import net.minecraft.server.PacketPlayOutMapChunk;
++import net.minecraft.server.PlayerConnection;
++import de.minetick.PlayerChunkSendQueue;
++import de.minetick.packetbuilder.PacketBuilderBuffer;
++import de.minetick.packetbuilder.PacketBuilderChunkData;
++import de.minetick.packetbuilder.PacketBuilderJobInterface;
++
++public class PBJobPlayOutMapChunk implements PacketBuilderJobInterface {
++
++    private PlayerConnection connection;
++    private PlayerChunkSendQueue chunkQueue;
++    private PlayerConnection[] connections;
++    private PlayerChunkSendQueue[] chunkQueues;
++    private PacketBuilderChunkData chunkData;
++    ArrayList<PlayerConnection> validOnes = new ArrayList<PlayerConnection>();
++    private boolean multipleConnections;
++
++    private PacketBuilderBuffer pbb;
++
++    public PBJobPlayOutMapChunk(PlayerConnection connection, PlayerChunkSendQueue chunkQueue, PacketBuilderChunkData chunkData) {
++        this.multipleConnections = false;
++        this.connection = connection;
++        this.chunkQueue = chunkQueue;
++        this.chunkData = chunkData;
++    }
++
++    public PBJobPlayOutMapChunk(PlayerConnection[] connections, PlayerChunkSendQueue[] chunkQueues, PacketBuilderChunkData chunkData) {
++        this.multipleConnections = true;
++        this.connections = connections;
++        this.chunkQueues = chunkQueues;
++        this.chunkData = chunkData;
++    }
++
++    @Override
++    public void run() {
++        boolean packetSent = false;
++        Chunk chunk = this.chunkData.getChunk();
++        PacketPlayOutMapChunk packet = new PacketPlayOutMapChunk(this.pbb, chunk, this.chunkData.getSendAllFlag(), this.chunkData.getSectionBitmask());
++        if(this.multipleConnections) {
++            for(int a = 0; a < this.connections.length; a++) {
++                if(this.chunkQueues[a] != null && this.connections[a] != null) {
++                    if(this.chunkQueues[a].isOnServer(chunk.locX, chunk.locZ)) {
++                        this.validOnes.add(this.connections[a]);
++                        this.connections[a] = null;
++                        this.chunkQueues[a] = null;
++                    }
++                }
++            }
++            if(this.validOnes.size() > 0) {
++                packet.setPendingUses(this.validOnes.size());
++                packetSent = true;
++                for(PlayerConnection n: this.validOnes) {
++                    n.sendPacket(packet);
++                    this.chunkData.sendTileEntities(n);
++                }
++            }
++            this.connections = null;
++            this.chunkQueues = null;
++        } else {
++            if(this.chunkQueue != null &&  this.connection != null) {
++                if(!this.chunkQueue.isOnServer(chunk.locX, chunk.locZ)) {
++                    packetSent = true;
++                    packet.setPendingUses(1);
++                    this.connection.sendPacket(packet);
++                }
++            }
++            this.connection = null;
++            this.chunkQueue = null;
++        }
++        if(!packetSent) {
++            packet.discard();
++        }
++        this.clear();
++    }
++
++    private void clear() {
++        this.validOnes.clear();
++        this.validOnes = null;
++        this.chunkData.clear();
++        if(this.connections != null) {
++            for(int i = 0; i < this.connections.length; i++) {
++                this.connections[i] = null;
++            }
++            this.connections = null;
++        }
++        if(this.chunkQueues != null) {
++            for(int i = 0; i < this.chunkQueues.length; i++) {
++                this.chunkQueues[i] = null;
++            }
++            this.chunkQueues = null;
++        }
++        this.connection = null;
++        this.chunkQueue = null;
++        this.pbb = null;
++    }
++
++    @Override
++    public void assignBuildBuffer(PacketBuilderBuffer pbb) {
++        this.pbb = pbb;
++    }
++}
+diff --git a/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunkBulk.java b/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunkBulk.java
+new file mode 100644
+index 0000000..e531bed
+--- /dev/null
++++ b/src/main/java/de/minetick/packetbuilder/jobs/PBJobPlayOutMapChunkBulk.java
+@@ -0,0 +1,59 @@
++package de.minetick.packetbuilder.jobs;
++
++import net.minecraft.server.PacketPlayOutMapChunkBulk;
++import net.minecraft.server.PlayerConnection;
++import de.minetick.PlayerChunkSendQueue;
++import de.minetick.packetbuilder.PacketBuilderBuffer;
++import de.minetick.packetbuilder.PacketBuilderChunkDataBulk;
++import de.minetick.packetbuilder.PacketBuilderJobInterface;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
++
++public class PBJobPlayOutMapChunkBulk implements PacketBuilderJobInterface {
++
++    private PlayerConnection connection;
++    private PlayerChunkSendQueue chunkQueue;
++    private PacketBuilderChunkDataBulk chunkData;
++
++    private PacketBuilderBuffer pbb;
++
++    public PBJobPlayOutMapChunkBulk(PlayerConnection connection, PacketBuilderChunkDataBulk chunkData, PlayerChunkSendQueue chunkQueue) {
++        this.connection = connection;
++        this.chunkData = chunkData;
++        this.chunkQueue = chunkQueue;
++    }
++
++    @Override
++    public void run() {
++        if(this.chunkQueue == null || this.connection == null) {
++            this.chunkData.clear();
++            this.clear();
++        }
++        PacketPlayOutMapChunkBulk packet = new PacketPlayOutMapChunkBulk(this.pbb, this.chunkData.getChunks());
++        boolean allStillListed = this.chunkData.verifyLoadedChunks(this.chunkQueue);
++        if(allStillListed) {
++            packet.setPendingUses(1);
++            this.connection.sendPacket(packet);
++            this.chunkData.sendTileEntities(this.connection);
++            this.chunkData.queueChunksForTracking(this.connection.player, this.chunkQueue);
++            this.chunkData.clear();
++        } else {
++            packet.discard();
++        }
++        if(!allStillListed && !this.chunkData.isEmpty()) {
++            PacketBuilderThreadPool.addJobStatic(new PBJobPlayOutMapChunkBulk(this.connection, this.chunkData, this.chunkQueue));
++        }
++        this.clear();
++    }
++
++    private void clear() {
++        this.chunkData = null;
++        this.connection = null;
++        this.chunkQueue = null;
++        this.pbb = null;
++    }
++
++    @Override
++    public void assignBuildBuffer(PacketBuilderBuffer pbb) {
++        this.pbb = pbb;
++    }
++}
+diff --git a/src/main/java/de/minetick/profiler/WorldProfile.java b/src/main/java/de/minetick/profiler/WorldProfile.java
+index 74ad768..ea9ae7d 100644
+--- a/src/main/java/de/minetick/profiler/WorldProfile.java
++++ b/src/main/java/de/minetick/profiler/WorldProfile.java
+@@ -75,7 +75,8 @@ public class WorldProfile extends Profile {
+         DO_TICK(0, "Bl:"),
+         TICK_ENTITIES(1, "Ent:"),
+         TICK_TILEENTITIES(2, "TEnt:"),
+-        UPDATE_PLAYERS(3, "PlUpd:");
++        UPDATE_PLAYERS(3, "PlUpd:"),
++        CHUNK_LOADING(4, "Chk:");
+ 
+         private int index;
+         private String logEntry;
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 8981a20..a9c3bf3 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -45,6 +45,7 @@ public class Chunk {
+ 
+     // MinetickMod start
+     private boolean unloaded = false;
++    private boolean newChunk = false;
+ 
+     public boolean wasUnloaded() {
+         return this.unloaded;
+@@ -53,6 +54,16 @@ public class Chunk {
+     public void markAsUnloaded() {
+         this.unloaded = true;
+     }
++
++    public void markAsNew() {
++        this.newChunk = true;
++    }
++
++    public boolean getAndResetIsNew() {
++        boolean out = this.newChunk;
++        this.newChunk = false;
++        return out;
++    }
+     // MinetickMod end
+ 
+     // CraftBukkit start - Neighbor loaded cache for chunk lighting and entity ticking
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index f773f5e..a20dfbb 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -176,6 +176,7 @@ public class ChunkProviderServer implements IChunkProvider {
+                     }
+                 }
+                 newChunk = true; // CraftBukkit
++                chunk.markAsNew(); // MinetickMod
+             }
+ 
+             this.chunks.put(LongHash.toLong(i, j), chunk);
+diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
+index 550e506..f92d7ad 100644
+--- a/src/main/java/net/minecraft/server/EntityPlayer.java
++++ b/src/main/java/net/minecraft/server/EntityPlayer.java
+@@ -24,6 +24,12 @@ import org.bukkit.event.inventory.InventoryType;
+ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+ // CraftBukkit end
+ 
++// MinetickMod start
++import de.minetick.MinetickMod;
++import de.minetick.PlayerChunkSendQueue;
++import java.util.concurrent.ConcurrentLinkedQueue;
++// MinetickMod end
++
+ public class EntityPlayer extends EntityHuman implements ICrafting {
+ 
+     private static final Logger bH = LogManager.getLogger();
+@@ -63,6 +69,30 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+     public boolean joining = true;
+     // CraftBukkit end
+ 
++    // MinetickMod start
++    private int clientViewDistance;
++
++    public void setViewDistance(int distance) {
++        this.clientViewDistance = Math.max(distance, MinetickMod.minimumViewDistance());
++        this.clientViewDistance = Math.min(this.clientViewDistance, ((WorldServer)this.world).getPlayerChunkMap().getViewDistance());
++        MinetickMod.setPlayerViewDistance(this.getUniqueID(), this.clientViewDistance);
++    }
++
++    public int getViewDistance() {
++        return this.clientViewDistance;
++    }
++
++    public PlayerChunkSendQueue chunkQueue;
++    public ConcurrentLinkedQueue<Chunk> chunksForTracking = new ConcurrentLinkedQueue<Chunk>();
++
++    public void setPlayerChunkSendQueue(PlayerChunkSendQueue pcsq) {
++        if(this.chunkQueue != null) {
++            this.chunkQueue.clear();
++        }
++        this.chunkQueue = pcsq;
++    }
++    // MinetickMod end
++
+     public EntityPlayer(MinecraftServer minecraftserver, WorldServer worldserver, GameProfile gameprofile, PlayerInteractManager playerinteractmanager) {
+         super(worldserver, gameprofile);
+         playerinteractmanager.player = this;
+@@ -98,6 +128,8 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+         // this.canPickUpLoot = true; TODO
+         this.maxHealthCache = this.getMaxHealth();
+         // CraftBukkit end
++
++        this.clientViewDistance = MinetickMod.getPlayerViewDistance(this.getUniqueID(), worldserver.getPlayerChunkMap()); // MinetickMod
+     }
+ 
+     public void a(NBTTagCompound nbttagcompound) {
+@@ -201,6 +233,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+             this.playerConnection.sendPacket(new PacketPlayOutEntityDestroy(aint));
+         }
+ 
++        /* MinetickMod - The PlayerChunkManager and the PacketBuilder is going to handle this
+         if (!this.chunkCoordIntPairQueue.isEmpty()) {
+             ArrayList arraylist = Lists.newArrayList();
+             Iterator iterator1 = this.chunkCoordIntPairQueue.iterator();
+@@ -248,6 +281,13 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+                 }
+             }
+         }
++        */
++        // MinetickMod start
++        while(!this.chunksForTracking.isEmpty()) {
++            Chunk c = this.chunksForTracking.poll();
++            this.u().getTracker().a(this, c);
++        }
++        // MinetickMod end
+ 
+         Entity entity = this.C();
+ 
+@@ -537,7 +577,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+         return entityplayer.v() ? this.C() == this : (this.v() ? false : super.a(entityplayer));
+     }
+ 
+-    private void a(TileEntity tileentity) {
++    public void a(TileEntity tileentity) { // MinetickMod - public
+         if (tileentity != null) {
+             Packet packet = tileentity.getUpdatePacket();
+ 
+@@ -984,6 +1024,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+ 
+     public void a(PacketPlayInSettings packetplayinsettings) {
+         this.locale = packetplayinsettings.a();
++        this.setViewDistance(packetplayinsettings.getClientViewDistance()); // MinetickMod
+         this.bR = packetplayinsettings.c();
+         this.bS = packetplayinsettings.d();
+         this.getDataWatcher().watch(10, Byte.valueOf((byte) packetplayinsettings.e()));
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index 5ef2be4..29f3fec 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -415,7 +415,10 @@ public class EntityTrackerEntry {
+         double d1 = entityplayer.locZ - this.tracker.locZ;
+         // CraftBukkit end
+ 
+-        return d0 >= (double) (-this.b) && d0 <= (double) this.b && d1 >= (double) (-this.b) && d1 <= (double) this.b && this.tracker.a(entityplayer);
++        // MinetickMod start
++        double range = (double) Math.min(this.b, (entityplayer.getViewDistance() - 1) * 16.0D);
++        return d0 >= -range && d0 <= range && d1 >= -range && d1 <= range && this.tracker.a(entityplayer);
++        // MinetickMod end
+     }
+ 
+     private boolean e(EntityPlayer entityplayer) {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInSettings.java b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+index 6bf4c3d..278a03b 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInSettings.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+@@ -36,6 +36,12 @@ public class PacketPlayInSettings implements Packet<PacketListenerPlayIn> {
+         return this.a;
+     }
+ 
++    // MinetickMod start
++    public int getClientViewDistance() {
++        return this.b;
++    }
++    // MinetickMod end
++
+     public EntityHuman.EnumChatVisibility c() {
+         return this.c;
+     }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index 6e368f5..16dcb81 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -1,10 +1,16 @@
+ package net.minecraft.server;
+ 
+ import com.google.common.collect.Lists;
++
+ import java.io.IOException;
+ import java.util.ArrayList;
+ import java.util.Iterator;
+ 
++// MinetickMod start
++import de.minetick.packetbuilder.PacketBuilderBuffer;
++import java.util.concurrent.atomic.AtomicInteger;
++// MinetickMod end
++
+ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+ 
+     private int a;
+@@ -12,13 +18,33 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+     private PacketPlayOutMapChunk.ChunkMap c;
+     private boolean d;
+ 
++    // MinetickMod start
++    private AtomicInteger pendingUses = new AtomicInteger(1);
++    private PacketBuilderBuffer pbb;
++
++    public void setPendingUses(int uses) {
++        this.pendingUses.set(uses);
++    }
++
++    public void discard() {
++        if(this.pbb != null) {
++            if(this.c.a != null) {
++                this.pbb.offerSendBuffer(this.c.a);
++                this.c.a = null;
++            }
++            this.pbb = null;
++        }
++    }
++    // MinetickMod end
++
+     public PacketPlayOutMapChunk() {}
+ 
+-    public PacketPlayOutMapChunk(Chunk chunk, boolean flag, int i) {
++    public PacketPlayOutMapChunk(PacketBuilderBuffer pbb, Chunk chunk, boolean flag, int i) { // MinetickMod
++        this.pbb = pbb; // MinetickMod
+         this.a = chunk.locX;
+         this.b = chunk.locZ;
+         this.d = flag;
+-        this.c = a(chunk, flag, !chunk.getWorld().worldProvider.o(), i);
++        this.c = a(pbb, chunk, flag, !chunk.getWorld().worldProvider.o(), i); // MinetickMod
+     }
+ 
+     public void a(PacketDataSerializer packetdataserializer) throws IOException {
+@@ -36,6 +62,11 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+         packetdataserializer.writeBoolean(this.d);
+         packetdataserializer.writeShort((short) (this.c.b & '\uffff'));
+         packetdataserializer.a(this.c.a);
++        // MinetickMod start
++        if(this.pendingUses.decrementAndGet() == 0) {
++            this.discard();
++        }
++        // MinetickMod end
+     }
+ 
+     public void a(PacketListenerPlayOut packetlistenerplayout) {
+@@ -51,7 +82,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+         return j + k + l + i1;
+     }
+ 
+-    public static PacketPlayOutMapChunk.ChunkMap a(Chunk chunk, boolean flag, boolean flag1, int i) {
++    public static PacketPlayOutMapChunk.ChunkMap a(PacketBuilderBuffer pbb, Chunk chunk, boolean flag, boolean flag1, int i) { // MinetickMod
+         ChunkSection[] achunksection = chunk.getSections();
+         PacketPlayOutMapChunk.ChunkMap packetplayoutmapchunk_chunkmap = new PacketPlayOutMapChunk.ChunkMap();
+         ArrayList arraylist = Lists.newArrayList();
+@@ -67,7 +98,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+             }
+         }
+ 
+-        packetplayoutmapchunk_chunkmap.a = new byte[a(Integer.bitCount(packetplayoutmapchunk_chunkmap.b), flag1, flag)];
++        packetplayoutmapchunk_chunkmap.a = pbb.requestSendBuffer(a(Integer.bitCount(packetplayoutmapchunk_chunkmap.b), flag1, flag)); // MinetickMod
+         j = 0;
+         Iterator iterator = arraylist.iterator();
+ 
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
+index 63b90f7..8c55566 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
+@@ -3,6 +3,11 @@ package net.minecraft.server;
+ import java.io.IOException;
+ import java.util.List;
+ 
++// MinetickMod start
++import java.util.concurrent.atomic.AtomicInteger;
++import de.minetick.packetbuilder.PacketBuilderBuffer;
++// MinetickMod end
++
+ public class PacketPlayOutMapChunkBulk implements Packet<PacketListenerPlayOut> {
+ 
+     private int[] a;
+@@ -10,9 +15,30 @@ public class PacketPlayOutMapChunkBulk implements Packet<PacketListenerPlayOut>
+     private PacketPlayOutMapChunk.ChunkMap[] c;
+     private boolean d;
+ 
++    // MinetickMod start
++    private AtomicInteger pendingUses = new AtomicInteger(1);
++    private PacketBuilderBuffer pbb;
++
++    public void setPendingUses(int uses) {
++        this.pendingUses.set(uses);
++    }
++
++    public void discard() {
++        if(this.pbb != null) {
++            if(this.c != null) {
++                for(int i = 0; i < this.c.length; i++) {
++                    this.pbb.offerSendBuffer(this.c[i].a);
++                    this.c[i].a = null;
++                }
++            }
++            this.pbb = null;
++        }
++    }
++    // MinetickMod end
++
+     public PacketPlayOutMapChunkBulk() {}
+ 
+-    public PacketPlayOutMapChunkBulk(List<Chunk> list) {
++    public PacketPlayOutMapChunkBulk(PacketBuilderBuffer pbb, List<Chunk> list) { // MinetickMod
+         int i = list.size();
+ 
+         this.a = new int[i];
+@@ -22,7 +48,7 @@ public class PacketPlayOutMapChunkBulk implements Packet<PacketListenerPlayOut>
+ 
+         for (int j = 0; j < i; ++j) {
+             Chunk chunk = (Chunk) list.get(j);
+-            PacketPlayOutMapChunk.ChunkMap packetplayoutmapchunk_chunkmap = PacketPlayOutMapChunk.a(chunk, true, this.d, '\uffff');
++            PacketPlayOutMapChunk.ChunkMap packetplayoutmapchunk_chunkmap = PacketPlayOutMapChunk.a(pbb, chunk, true, this.d, '\uffff'); // MinetickMod
+ 
+             this.a[j] = chunk.locX;
+             this.b[j] = chunk.locZ;
+@@ -70,7 +96,11 @@ public class PacketPlayOutMapChunkBulk implements Packet<PacketListenerPlayOut>
+         for (i = 0; i < this.a.length; ++i) {
+             packetdataserializer.writeBytes(this.c[i].a);
+         }
+-
++        // MinetickMod start
++        if(this.pendingUses.decrementAndGet() == 0) {
++            this.discard();
++        }
++        // MinetickMod end
+     }
+ 
+     public void a(PacketListenerPlayOut packetlistenerplayout) {
+diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
+index 688d6f0..65aa181 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
++++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
+@@ -1,9 +1,11 @@
+ package net.minecraft.server;
+ 
+ import com.google.common.collect.Lists;
++
+ import java.util.ArrayList;
+ import java.util.Iterator;
+ import java.util.List;
++
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -15,6 +17,16 @@ import org.bukkit.craftbukkit.chunkio.ChunkIOExecutor;
+ import java.util.HashMap;
+ // CraftBukkit end
+ 
++// MinetickMod start
++import de.minetick.ChunkGenerationPolicy;
++import de.minetick.PlayerChunkBuffer;
++import de.minetick.PlayerChunkManager;
++import de.minetick.PlayerChunkSendQueue;
++import de.minetick.packetbuilder.PacketBuilderChunkData;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
++import de.minetick.packetbuilder.jobs.PBJobPlayOutMapChunk;
++// MinetickMod end
++
+ public class PlayerChunkMap {
+ 
+     private static final Logger a = LogManager.getLogger();
+@@ -28,9 +40,30 @@ public class PlayerChunkMap {
+     private final int[][] i = new int[][] { { 1, 0}, { 0, 1}, { -1, 0}, { 0, -1}};
+     private boolean wasNotEmpty; // CraftBukkit - add field
+ 
++    // MinetickMod start
++    private PlayerChunkManager playerChunkManager;
++
++    public void skipChunkGeneration(boolean skip) {
++        this.playerChunkManager.skipChunkGeneration(skip);
++    }
++
++    public int updatePlayers(ChunkGenerationPolicy chunkGenerationPolicy) {
++        return this.playerChunkManager.updatePlayers(chunkGenerationPolicy);
++    }
++
++    public int getViewDistance() {
++        return this.g;
++    }
++
++    public PlayerChunkManager getPlayerChunkManager() {
++        return this.playerChunkManager;
++    }
++    // MinetickMod end
++
+     public PlayerChunkMap(WorldServer worldserver) {
+         this.world = worldserver;
+         this.a(worldserver.getMinecraftServer().getPlayerList().s());
++        this.playerChunkManager = new PlayerChunkManager(this.world, this); // MinetickMod
+     }
+ 
+     public WorldServer a() {
+@@ -85,7 +118,7 @@ public class PlayerChunkMap {
+         return this.d.getEntry(k) != null;
+     }
+ 
+-    private PlayerChunkMap.PlayerChunk a(int i, int j, boolean flag) {
++    public PlayerChunkMap.PlayerChunk a(int i, int j, boolean flag) { // MinetickMod - public
+         long k = (long) i + 2147483647L | (long) j + 2147483647L << 32;
+         PlayerChunkMap.PlayerChunk playerchunkmap_playerchunk = (PlayerChunkMap.PlayerChunk) this.d.getEntry(k);
+ 
+@@ -120,6 +153,7 @@ public class PlayerChunkMap {
+     }
+ 
+     public void addPlayer(EntityPlayer entityplayer) {
++        /* MinetickMod - see the rewrite below
+         int i = (int) entityplayer.locX >> 4;
+         int j = (int) entityplayer.locZ >> 4;
+ 
+@@ -143,8 +177,49 @@ public class PlayerChunkMap {
+ 
+         this.managedPlayers.add(entityplayer);
+         this.b(entityplayer);
++        */
++
++        // MinetickMod start - chunks are queued for loading except the one the player is in
++        int i = MathHelper.floor(entityplayer.locX) >> 4;
++        int j = MathHelper.floor(entityplayer.locZ) >> 4;
++
++        entityplayer.d = entityplayer.locX;
++        entityplayer.e = entityplayer.locZ;
++
++        PlayerChunkBuffer buffer = this.playerChunkManager.addPlayer(entityplayer);
++        PlayerChunkSendQueue sendQueue = buffer.getPlayerChunkSendQueue();
++        entityplayer.setPlayerChunkSendQueue(sendQueue);
++
++        List<ChunkCoordIntPair> chunkList = new ArrayList<ChunkCoordIntPair>(450);
++        boolean areaExists = this.playerChunkManager.doAllCornersOfPlayerAreaExist(i, j, this.g);
++        int playersVD = entityplayer.getViewDistance();
++        for (int k = i - playersVD; k <= i + playersVD; ++k) {
++            for (int l = j - playersVD; l <= j + playersVD; ++l) {
++                ChunkCoordIntPair ccip = new ChunkCoordIntPair(k, l);
++                sendQueue.addToServer(k, l);
++                if(areaExists) {
++                    if(this.a(k, l, i, j, 0)) {
++                        chunkList.add(ccip);
++                    } else {
++                        buffer.addHighPriorityChunk(ccip);
++                    }
++                } else {
++                    buffer.addLowPriorityChunk(ccip);
++                }
++            }
++        }
++
++        for (ChunkCoordIntPair pair : chunkList) {
++            PlayerChunk c = this.a(pair.x, pair.z, true);
++            c.a(entityplayer);
++            sendQueue.queueForSend(c, entityplayer);
++        }
++
++        this.managedPlayers.add(entityplayer);
++        // MinetickMod end
+     }
+ 
++    /* MinetickMod - not required anymore
+     public void b(EntityPlayer entityplayer) {
+         ArrayList arraylist = Lists.newArrayList(entityplayer.chunkCoordIntPairQueue);
+         int i = 0;
+@@ -189,8 +264,10 @@ public class PlayerChunkMap {
+         }
+ 
+     }
++    */
+ 
+     public void removePlayer(EntityPlayer entityplayer) {
++        /*
+         int i = (int) entityplayer.d >> 4;
+         int j = (int) entityplayer.e >> 4;
+ 
+@@ -203,6 +280,23 @@ public class PlayerChunkMap {
+                 }
+             }
+         }
++        */
++
++        // MinetickMod start
++        java.util.Iterator i = this.f.iterator();
++        while(i.hasNext()) {
++            PlayerChunk c = (PlayerChunk) i.next();
++            if(c != null) {
++                c.b(entityplayer);
++            }
++        }
++        PlayerChunkSendQueue pcsq = entityplayer.chunkQueue;
++        if(pcsq != null) {
++            pcsq.clear();
++        }
++        entityplayer.setPlayerChunkSendQueue(null);
++        this.playerChunkManager.removePlayer(entityplayer);
++        // MinetickMod end
+ 
+         this.managedPlayers.remove(entityplayer);
+     }
+@@ -215,6 +309,7 @@ public class PlayerChunkMap {
+     }
+ 
+     public void movePlayer(EntityPlayer entityplayer) {
++        /* MinetickMod - The PlayerChunkManager is going to take care of loading player chunks
+         int i = (int) entityplayer.locX >> 4;
+         int j = (int) entityplayer.locZ >> 4;
+         double d0 = entityplayer.d - entityplayer.locX;
+@@ -262,12 +357,45 @@ public class PlayerChunkMap {
+                 // CraftBukkit end
+             }
+         }
++        */
++        // MinetickMod start
++        double distX = entityplayer.d - entityplayer.locX;
++        double distZ = entityplayer.e - entityplayer.locZ;
++        if((distX * distX + distZ * distZ) >= 128.0D) {
++            int newPosX = MathHelper.floor(entityplayer.locX) >> 4;
++            int newPosZ = MathHelper.floor(entityplayer.locZ) >> 4;
++            int oldPosX = MathHelper.floor(entityplayer.d) >> 4;
++            int oldPosZ = MathHelper.floor(entityplayer.e) >> 4;
++            int diffX = newPosX - oldPosX;
++            int diffZ = newPosZ - oldPosZ;
++            if (diffX != 0 || diffZ != 0) {
++                PlayerChunkBuffer buffer = this.playerChunkManager.getChunkBuffer(entityplayer);
++                if(buffer != null) {
++                    buffer.playerMoved(newPosX, newPosZ);
++                    entityplayer.d = entityplayer.locX;
++                    entityplayer.e = entityplayer.locZ;
++                }
++            }
++        }
++        // MinetickMod end
+     }
+ 
+     public boolean a(EntityPlayer entityplayer, int i, int j) {
+         PlayerChunkMap.PlayerChunk playerchunkmap_playerchunk = this.a(i, j, false);
+ 
+-        return playerchunkmap_playerchunk != null && playerchunkmap_playerchunk.b.contains(entityplayer) && !entityplayer.chunkCoordIntPairQueue.contains(playerchunkmap_playerchunk.location);
++        // MinetickMod start
++        if(playerchunkmap_playerchunk != null) {
++            ChunkCoordIntPair ccip = playerchunkmap_playerchunk.location;
++            boolean chunkIsSent = false;
++            PlayerChunkSendQueue sq = entityplayer.chunkQueue;
++            if(sq != null) {
++                chunkIsSent = sq.isChunkSent(ccip);
++            }
++            return chunkIsSent && playerchunkmap_playerchunk.b.contains(entityplayer);
++        } else {
++            return false;
++        }
++        // MinetickMod end
+     }
+ 
+     public void a(int i) {
+@@ -279,8 +407,9 @@ public class PlayerChunkMap {
+ 
+             while (iterator.hasNext()) {
+                 EntityPlayer entityplayer = (EntityPlayer) iterator.next();
+-                int k = (int) entityplayer.locX >> 4;
+-                int l = (int) entityplayer.locZ >> 4;
++                // MinetickMod - fix chunk coordinate miscalculations
++                int k = MathHelper.floor(entityplayer.locX) >> 4;
++                int l = MathHelper.floor(entityplayer.locZ) >> 4;
+                 int i1;
+                 int j1;
+ 
+@@ -313,7 +442,7 @@ public class PlayerChunkMap {
+         return i * 16 - 16;
+     }
+ 
+-    class PlayerChunk {
++    public class PlayerChunk { // MinetickMod - public
+ 
+         private final List<EntityPlayer> b = Lists.newArrayList();
+         private final ChunkCoordIntPair location;
+@@ -332,9 +461,27 @@ public class PlayerChunkMap {
+         };
+         // CraftBukkit end
+ 
++        // MinetickMod start
++        private boolean newChunk = false;
++        public boolean getAndResetIsNew() {
++            boolean out = this.newChunk;
++            this.newChunk = false;
++            return out;
++        }
++
++        public ChunkCoordIntPair getLocation() {
++            return this.location;
++        }
++        // MinetickMod end
++
+         public PlayerChunk(int i, int j) {
+             this.location = new ChunkCoordIntPair(i, j);
+-            PlayerChunkMap.this.a().chunkProviderServer.getChunkAt(i, j, loadedRunnable); // CraftBukkit
++            // MinetickMod start
++            Chunk chunk = PlayerChunkMap.this.a().chunkProviderServer.getChunkAt(i, j, loadedRunnable); // CraftBukkit
++            if(chunk != null && !chunk.isEmpty()) {
++                this.newChunk = chunk.getAndResetIsNew();
++            }
++            // MinetickMod end
+         }
+ 
+         public void a(final EntityPlayer entityplayer) {  // CraftBukkit - added final to argument
+@@ -350,11 +497,11 @@ public class PlayerChunkMap {
+                 Runnable playerRunnable;
+                 if (this.loaded) {
+                     playerRunnable = null;
+-                    entityplayer.chunkCoordIntPairQueue.add(this.location);
++                    //entityplayer.chunkCoordIntPairQueue.add(this.location); // MinetickMod
+                 } else {
+                     playerRunnable = new Runnable() {
+                         public void run() {
+-                            entityplayer.chunkCoordIntPairQueue.add(PlayerChunk.this.location);
++                            //entityplayer.chunkCoordIntPairQueue.add(PlayerChunk.this.location); // MinetickMod
+                         }
+                     };
+                     PlayerChunkMap.this.a().chunkProviderServer.getChunkAt(this.location.x, this.location.z, playerRunnable);
+@@ -386,12 +533,12 @@ public class PlayerChunkMap {
+                 Chunk chunk = PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z);
+ 
+                 if (chunk.isReady()) {
+-                    entityplayer.playerConnection.sendPacket(new PacketPlayOutMapChunk(chunk, true, 0));
++                    PacketBuilderThreadPool.addJobStatic(new PBJobPlayOutMapChunk(entityplayer.playerConnection, entityplayer.chunkQueue, new PacketBuilderChunkData(chunk, true, 0))); // MinetickMod
+                 }
+ 
+                 this.players.remove(entityplayer); // CraftBukkit
+                 this.b.remove(entityplayer);
+-                entityplayer.chunkCoordIntPairQueue.remove(this.location);
++                //entityplayer.chunkCoordIntPairQueue.remove(this.location); // MinetickMod
+                 if (this.b.isEmpty()) {
+                     long i = (long) this.location.x + 2147483647L | (long) this.location.z + 2147483647L << 32;
+ 
+@@ -441,9 +588,19 @@ public class PlayerChunkMap {
+             for (int i = 0; i < this.b.size(); ++i) {
+                 EntityPlayer entityplayer = (EntityPlayer) this.b.get(i);
+ 
++                /*
+                 if (!entityplayer.chunkCoordIntPairQueue.contains(this.location)) {
+                     entityplayer.playerConnection.sendPacket(packet);
+                 }
++                */
++                // MinetickMod start
++                PlayerChunkSendQueue sq = entityplayer.chunkQueue;
++                if(sq != null) {
++                    if(!sq.isAboutToSend(this.location)) {
++                        entityplayer.playerConnection.sendPacket(packet);
++                    }
++                }
++                // MinetickMod end
+             }
+ 
+         }
+@@ -470,6 +627,7 @@ public class PlayerChunkMap {
+                     if (this.dirtyCount == 64) {
+                         i = this.location.x * 16;
+                         j = this.location.z * 16;
++                        /*
+                         this.a((Packet) (new PacketPlayOutMapChunk(PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z), false, this.f)));
+ 
+                         for (k = 0; k < 16; ++k) {
+@@ -482,6 +640,22 @@ public class PlayerChunkMap {
+                                 }
+                             }
+                         }
++                        */
++                        // MinetickMod start
++                        PlayerConnection[] players = new PlayerConnection[this.b.size()];
++                        PlayerChunkSendQueue[] queues = new PlayerChunkSendQueue[this.b.size()];
++                        for(int index = 0; index < this.b.size(); index++) {
++                            EntityPlayer entityplayer = (EntityPlayer) this.b.get(index);
++                            PlayerChunkSendQueue sq = entityplayer.chunkQueue;
++                            if(sq != null) {
++                                if(!sq.isAboutToSend(this.location)) {
++                                    players[index] = entityplayer.playerConnection;
++                                    queues[index] = entityplayer.chunkQueue;
++                                }
++                            }
++                        }
++                        PacketBuilderThreadPool.addJobStatic(new PBJobPlayOutMapChunk(players, queues, new PacketBuilderChunkData(PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z), false, this.f)));
++                        // MinetickMod end
+                     } else {
+                         this.a((Packet) (new PacketPlayOutMultiBlockChange(this.dirtyCount, this.dirtyBlocks, PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z))));
+ 
+@@ -515,6 +689,7 @@ public class PlayerChunkMap {
+         }
+     }
+ 
++    /* MinetickMod - replaced by MinetickChunkCoordComparator
+     // CraftBukkit start - Sorter to load nearby chunks first
+     private static class ChunkCoordComparator implements java.util.Comparator<ChunkCoordIntPair> {
+         private int x;
+@@ -557,4 +732,5 @@ public class PlayerChunkMap {
+         }
+     }
+     // CraftBukkit end
++    */
+ }
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index b936752..789cc1e 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -2048,7 +2048,7 @@ public abstract class World implements IBlockAccess {
+             entityhuman = (EntityHuman) this.players.get(i);
+             j = MathHelper.floor(entityhuman.locX / 16.0D);
+             k = MathHelper.floor(entityhuman.locZ / 16.0D);
+-            l = this.q();
++            l = Math.min(this.q(), ((EntityPlayer)entityhuman).getViewDistance() - 1); // MinetickMod
+ 
+             for (int i1 = -l; i1 <= l; ++i1) {
+                 for (int j1 = -l; j1 <= l; ++j1) {
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 10648c3..a27668c 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -29,6 +29,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
+ // CraftBukkit end
+ 
+ // MinetickMod start
++import de.minetick.ChunkGenerationPolicy;
+ import de.minetick.WorldTicker;
+ import de.minetick.profiler.Profiler;
+ // MinetickMod end
+@@ -61,6 +62,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+     // MinetickMod start
+     private WorldTicker worldTicker;
++    private ChunkGenerationPolicy chunkGenerationPolicy = new ChunkGenerationPolicy();
+ 
+     public void cancelHeavyCalculations(boolean cancel) {
+         this.cancelHeavyCalculations = cancel;
+@@ -72,6 +74,19 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         }
+         return this.worldTicker;
+     }
++
++    public boolean chunkExists(int x, int z) {
++        return this.chunkProviderServer.doesChunkExist(x, z);
++    }
++
++    public int loadAndGenerateChunks() {
++        if(this.players.size() > 0) {
++            this.chunkGenerationPolicy.newTick();
++            return this.manager.updatePlayers(this.chunkGenerationPolicy);
++        } else {
++            return 0;
++        }
++    }
+     // MinetickMode end
+ 
+     // Add env and gen to constructor
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 398998c..1b803c3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
+ import io.netty.handler.codec.base64.Base64;
+ import jline.console.ConsoleReader;
+ 
++// MinetickMod start
++import de.minetick.ChunkGenerationPolicy;
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import java.util.HashMap;
++// MinetickMod end
++
+ public final class CraftServer implements Server {
+     private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
+     private final String serverName = "CraftBukkit";
+@@ -1677,5 +1683,45 @@ public final class CraftServer implements Server {
+     public boolean getMinetickModBungeeCordSupport() {
+         return configuration.getBoolean("minetickmod.bungeeCordSupport");
+     }
++
++    public Map<org.bukkit.WorldType, Double> getMinetickModMaxChunkGenerationRates() {
++        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.maxChunkGenerationRates");
++        Set<String> subkeys = section.getKeys(false);
++        Map<org.bukkit.WorldType, Double> rateMap = new HashMap<org.bukkit.WorldType, Double>();
++        for(String key: subkeys) {
++            org.bukkit.WorldType type = org.bukkit.WorldType.getByName(key);
++            if(type != null) {
++                double rate = section.getDouble(key, ChunkGenerationPolicy.getDefaultRate(type));
++                if(rate < 0.25D) { rate = 0.25D; }
++                rateMap.put(type, rate);
++            } else {
++                logger.warning("[MinetickMod] The WorldType '" + key + "' was not recognized in the setting minetickmod.maxChunkGenerationRates");
++            }
++        }
++        return rateMap;
++    }
++
++    public void getMinetickModPacketChunkRates(ChunkPriority[] values) {
++        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.packetChunkRates");
++        Set<String> subkeys = section.getKeys(false);
++        for(String key: subkeys) {
++            int chunkCount = section.getInt(key);
++            if(chunkCount >= 1 && chunkCount <= 5) {
++                ChunkPriority priority = ChunkPriority.findEntry(key);
++                if(priority != null) {
++                    priority.setChunksPerPacket(chunkCount);
++                } else {
++                    logger.warning("[MinetickMod] The config entry minetickmod.packetChunkRates." + key + " is invalid. Removing it from the config.");
++                    section.set(key, null);
++                }
++            }
++        }
++    }
++
++    public int getMinetickModPacketBuilderPoolSize() {
++        int threadcount = configuration.getInt("minetickmod.packetBuilderThreadPoolSize");
++        threadcount = Math.max(1, threadcount);
++        return Math.min(32, threadcount);
++    }
+     // MinetickMod end
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index 4a9a764..63e8b59 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -73,3 +73,14 @@ minetickmod:
+     - SQUID
+     - WITCH
+     - ZOMBIE
++    packetBuilderThreadPoolSize: 4
++    packetChunkRates:
++        HIGHEST: 5
++        HIGH: 4
++        MODERATE: 3
++        LOW: 3
++    maxChunkGenerationRates:
++        DEFAULT: 1.0
++        FLAT: 2.0
++        LARGEBIOMES: 1.0
++        AMPLIFIED: 0.5
+-- 
+1.8.3.msysgit.0
+
