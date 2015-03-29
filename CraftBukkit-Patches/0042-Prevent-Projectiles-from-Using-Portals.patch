@@ -1,0 +1,22 @@
+From 4fef71bc2c6229417fdcb8df40bd76fa64434639 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Mon, 30 Mar 2015 01:50:07 +0200
+Subject: [PATCH] Prevent Projectiles from Using Portals
+
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index f5c75ca..c5738e5 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -264,7 +264,7 @@ public abstract class Entity implements ICommandListener {
+         this.lastZ = this.locZ;
+         this.lastPitch = this.pitch;
+         this.lastYaw = this.yaw;
+-        if (!this.world.isClientSide && this.world instanceof WorldServer) {
++        if (!this.world.isClientSide && this.world instanceof WorldServer && !(this instanceof EntityProjectile) && !(this instanceof EntityArrow) && !(this instanceof EntityFireball)) { // MinetickMod
+             this.world.methodProfiler.a("portal");
+             MinecraftServer minecraftserver = ((WorldServer) this.world).getMinecraftServer();
+             int i = this.L();
+-- 
+1.8.3.msysgit.0
+
