@@ -1,0 +1,568 @@
+From 2233bc810bbc3e05173ca4d8522a52969170b0bc Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Mon, 30 Mar 2015 01:31:34 +0200
+Subject: [PATCH] AntiXRay
+
+
+diff --git a/src/main/java/de/minetick/AntiXRay.java b/src/main/java/de/minetick/AntiXRay.java
+new file mode 100644
+index 0000000..2b3a32d
+--- /dev/null
++++ b/src/main/java/de/minetick/AntiXRay.java
+@@ -0,0 +1,269 @@
++package de.minetick;
++
++import java.util.ArrayList;
++import java.util.List;
++
++import org.bukkit.World.Environment;
++
++import net.minecraft.server.Block;
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.Blocks;
++import net.minecraft.server.Chunk;
++import net.minecraft.server.World;
++import net.minecraft.server.WorldServer;
++
++public class AntiXRay {
++
++    private boolean enabled = false;
++    private boolean overWorld = false;
++    private boolean theEnd = false;
++    private boolean nether = false;
++    private byte defaultBlock;
++    private static Byte[] fakeBlocks;
++    private int fakeBlockIndex = 0;
++    private static boolean blocksToHide[] = new boolean[256];
++    private static int[][] additionalUpdatePositions = new int[][]{ { 2,0, 0},{ 2,0, 1},{ 2,0,-1},
++                                                                    {-2,0, 0},{-2,0, 1},{-2,0,-1},
++                                                                    { 0,0,-2},{ 1,0,-2},{-1,0,-2},
++                                                                    { 0,0, 2},{ 1,0, 2},{-1,0, 2},
++                                                                    { 0,-2,0},{ 0,2, 0},{ 3,0, 0},
++                                                                    {-3, 0,0},{ 0,0, 3},{ 0,0,-3}};
++    private static List<String> configWorlds = new ArrayList<String>();
++
++    public static void setWorldsFromConfig(List<String> list) {
++        configWorlds.clear();
++        configWorlds.addAll(list);
++    }
++
++    public boolean isNether(WorldServer world) {
++        return world.getWorld().getEnvironment().equals(Environment.NETHER);
++    }
++
++    public boolean isOverworld(WorldServer world) {
++        return world.getWorld().getEnvironment().equals(Environment.NORMAL);
++    }
++
++    public boolean isTheEnd(WorldServer world) {
++        return world.getWorld().getEnvironment().equals(Environment.THE_END);
++    }
++
++    static {
++        blocksToHide[Block.getId(Blocks.BEDROCK)] = true;
++        blocksToHide[Block.getId(Blocks.GRAVEL)] = true;
++        blocksToHide[Block.getId(Blocks.IRON_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.GOLD_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.COAL_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.LAPIS_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.DIAMOND_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.REDSTONE_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.EMERALD_ORE)] = true;
++        blocksToHide[Block.getId(Blocks.QUARTZ_ORE)] = true;
++        ArrayList<Byte> fakeList = new ArrayList<Byte>();
++        fakeList.add((byte) Block.getId(Blocks.DIAMOND_ORE));
++        fakeList.add((byte) Block.getId(Blocks.IRON_ORE));
++        fakeList.add((byte) Block.getId(Blocks.GOLD_ORE));
++        fakeList.add((byte) Block.getId(Blocks.REDSTONE_ORE));
++        fakeList.add((byte) Block.getId(Blocks.MOSSY_COBBLESTONE));
++        fakeList.add((byte) Block.getId(Blocks.EMERALD_ORE));
++        fakeList.add((byte) Block.getId(Blocks.LAPIS_ORE));
++        fakeBlocks = fakeList.toArray(new Byte[0]);
++    }
++
++    public AntiXRay(WorldServer worldServer) {
++        this.enabled = false;
++        for(String w: configWorlds) {
++            if(w.equalsIgnoreCase(worldServer.getWorld().getName())) {
++                this.enabled = true;
++            }
++        }
++        if(this.overWorld = this.isOverworld(worldServer)) {
++            this.defaultBlock = (byte) Block.getId(Blocks.STONE);
++        } else if(this.nether = this.isNether(worldServer)) {
++            this.defaultBlock = (byte) Block.getId(Blocks.NETHERRACK);
++        } else if(this.theEnd = this.isTheEnd(worldServer)) {
++            this.defaultBlock = (byte) Block.getId(Blocks.END_STONE);
++        }
++    }
++
++    public void issueBlockUpdates(World world, BlockPosition blockposition) {
++        int x = blockposition.getX();
++        int y = blockposition.getY();
++        int z = blockposition.getZ();
++        BlockPosition.MutableBlockPosition mutableposition = new BlockPosition.MutableBlockPosition(x, y, z);
++        for(int i = x - 1; i <= x + 1; i++) {
++            for(int j = Math.max(0, y - 1); j < 256 && j <= y + 1; j++) {
++                for(int k = z - 1; k <= z + 1; k++) {
++                    if(i != x || j != y || k != z) {
++                        world.notify(mutableposition.c(i, j, k));
++                    }
++                }
++            }
++        }
++        for(int i = 0; i < additionalUpdatePositions.length; i++) {
++            int yp = additionalUpdatePositions[i][1] + y;
++            if(yp >= 0 && yp < 256) {
++                world.notify(mutableposition.c(x + additionalUpdatePositions[i][0], yp, z + additionalUpdatePositions[i][2]));
++            }
++        }
++    }
++
++    public void orebfuscate(byte[] buildBuffer, Chunk chunk, int chunkSectionsBitMask) {
++        int sectionStart = 0;
++        for(int sectionID = 0; sectionID < 16; sectionID++) {
++            if((chunkSectionsBitMask & (1 << sectionID)) != 0) {
++                this.orebfuscateSection(sectionID, sectionStart, buildBuffer, chunk);
++                sectionStart += 4096;
++            }
++        }
++    }
++
++    private boolean hasOnlySolidBlockNeighbours(Chunk chunk, int section, int x, int y, int z, int range) {
++        boolean result = true;
++        int i = range;
++        try {
++            while(result && i > 0) {
++                result = this.checkForSolidBlocks(chunk, section, x, y, z, i);
++                i--;
++            }
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return result;
++    }
++
++    private boolean checkForSolidBlocks(Chunk chunk, int section, int x, int y, int z, int distance) {
++        boolean allSolid = true;
++        Block block;
++
++        boolean within = (z - distance >= 0 && z + distance <= 15 && x - distance >= 0 && x + distance <= 15);
++        if(!within) {
++            allSolid = allSolid && this.checkBlockOfOtherPosition(chunk, section, x, y, z, distance, 0);
++            allSolid = allSolid && this.checkBlockOfOtherPosition(chunk, section, x, y, z, -distance, 0);
++            allSolid = allSolid && this.checkBlockOfOtherPosition(chunk, section, x, y, z, 0, distance);
++            allSolid = allSolid && this.checkBlockOfOtherPosition(chunk, section, x, y, z, 0, -distance);
++        } else {
++            block = chunk.getTypeWithinSection(section, x + distance, y, z);
++            allSolid = allSolid && block.isOccluding();
++            block = chunk.getTypeWithinSection(section, x - distance, y, z);
++            allSolid = allSolid && block.isOccluding();
++            block = chunk.getTypeWithinSection(section, x, y, z + distance);
++            allSolid = allSolid && block.isOccluding();
++            block = chunk.getTypeWithinSection(section, x, y, z - distance);
++            allSolid = allSolid && block.isOccluding();
++        }
++
++        if(!allSolid) { return allSolid; }
++
++        int below = y - distance;
++        int belowSection = section;
++        if(below < 0) {
++            below += 16;
++            belowSection--;
++        }
++        if(belowSection >= 0) {
++            block = chunk.getTypeWithinSection(belowSection, x, below, z);
++            allSolid = allSolid && block.isOccluding();
++        }
++
++        int above = y + distance;
++        int aboveSection = section;
++        if(above > 15) {
++            above -= 16;
++            aboveSection++;
++        }
++        if(aboveSection < 16) {
++            block = chunk.getTypeWithinSection(aboveSection, x, above, z);
++            allSolid = allSolid && block.isOccluding();
++        }
++        return allSolid;
++    }
++
++    private boolean checkBlockOfOtherPosition(Chunk c, int sectionID, int x, int y, int z, int diffX, int diffZ) {
++        int newX = x + diffX;
++        int newZ = z + diffZ;
++        int absX = (c.locX << 4) + newX;
++        int absZ = (c.locZ << 4) + newZ;
++        int ox = absX >> 4;
++        int oz = absZ >> 4;
++        Block block = null;
++        if(ox == c.locX && oz == c.locZ) {
++            block = c.getTypeWithinSection(sectionID, newX, y, newZ);
++        } else {
++            WorldServer worldServer = (WorldServer) c.world;
++            if(worldServer.chunkProviderServer.isChunkLoaded(ox, oz)) {
++                Chunk chunk = worldServer.chunkProviderServer.getChunkAt(ox, oz);
++                block = chunk.getTypeWithinSection(sectionID, absX - (ox << 4), y, absZ - (oz << 4));
++            }
++        }
++        return block != null ? block.isOccluding() : false;
++    }
++
++    public boolean isEnabled() {
++        return this.enabled;
++    }
++
++    public void enable() {
++        this.enabled = true;
++    }
++
++    public void disable() {
++        this.enabled = false;
++    }
++
++    private void orebfuscateSection(int sectionID, int sectionStart, byte[] buildBuffer, Chunk chunk) {
++        int index = sectionStart;
++        int counter = 0;
++        int distance = 5;
++        for(int y = 0; y < 16; y++) {
++            for(int z = 0; z < 16; z++) {
++                for(int x = 0; x < 16; x++) {
++                    int fullID = (buildBuffer[index << 1] & 0xFF) | ((buildBuffer[(index << 1) + 1] & 0xFF) << 8);
++                    int blockData = fullID & 0xF;
++                    int blockID = (fullID >>> 4) & 0xFF;
++                    if(this.overWorld) {
++                        if(blocksToHide[blockID]) {
++                            if(hasOnlySolidBlockNeighbours(chunk, sectionID, x, y, z, 1)) {
++                                this.putDefaultBlock(buildBuffer, index);
++                            }
++                        } else if(isEnabled() &&++counter == distance) {
++                            counter = 0;
++                            distance ^= 3;
++                            if(hasOnlySolidBlockNeighbours(chunk, sectionID, x, y, z, 2)) {
++                                this.putFakeBlock(buildBuffer, index);
++                            }
++                        }
++                    } else if(this.nether || this.theEnd) {
++                        if(blocksToHide[blockID] && hasOnlySolidBlockNeighbours(chunk, sectionID, x, y, z, 1)) {
++                            this.putDefaultBlock(buildBuffer, index);
++                        }
++                    }
++                    index++;
++                }
++            }
++        }
++        return;
++    }
++
++    private static void setNewID(byte[] buffer, int index, int newID) {
++        setNewID(buffer, index, newID, 0);
++    }
++
++    private static void setNewID(byte[] buffer, int index, int newID, int data) {
++        newID <<= 4;
++        newID |= (data & 0xF);
++        buffer[index << 1] = (byte) (newID & 0xFF);
++        buffer[(index << 1) + 1] = (byte) (newID >> 8 & 0xFF);
++    }
++
++    private void putFakeBlock(byte[] buffer, int index) {
++        int i = ++this.fakeBlockIndex;
++        if(i >= fakeBlocks.length) {
++            i = this.fakeBlockIndex = 0; 
++        }
++        setNewID(buffer, index, fakeBlocks[i].byteValue());
++    }
++
++    private void putDefaultBlock(byte[] buffer, int index) {
++        setNewID(buffer, index, this.defaultBlock);
++    }
++}
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 4dccf4d..b4140e8 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -47,6 +47,8 @@ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.entity.EntityType;
+ 
+ import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import de.minetick.AntiXRay;
++import de.minetick.modcommands.AntiXRayCommand;
+ import de.minetick.modcommands.TPSCommand;
+ import de.minetick.modcommands.WorldStatsCommand;
+ import de.minetick.packetbuilder.PacketBuilderThreadPool;
+@@ -96,10 +98,13 @@ public class MinetickMod {
+             CraftServer craftserver = MinecraftServer.getServer().server;
+             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
+             craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
++            craftserver.getCommandMap().register("antixray", "MinetickMod", new AntiXRayCommand("antixray"));
+             this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
+                     craftserver.getMinetickModProfilerWriteEnabled(),
+                     craftserver.getMinetickModProfilerWriteInterval());
+ 
++            AntiXRay.setWorldsFromConfig(craftserver.getMinetickModOrebfuscatedWorlds());
++
+             List<String> worlds = craftserver.getMinetickModNotGeneratingWorlds();
+             for(String w: worlds) {
+                 this.notGeneratingWorlds.add(w.toLowerCase());
+diff --git a/src/main/java/de/minetick/modcommands/AntiXRayCommand.java b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
+new file mode 100644
+index 0000000..6c36852
+--- /dev/null
++++ b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
+@@ -0,0 +1,82 @@
++package de.minetick.modcommands;
++
++import java.util.List;
++
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.WorldServer;
++
++import org.bukkit.ChatColor;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++import org.bukkit.command.ConsoleCommandSender;
++import org.bukkit.entity.Player;
++
++public class AntiXRayCommand extends Command {
++
++    private String prefix = ChatColor.GOLD + "[MinetickMod] " + ChatColor.WHITE;
++
++    public AntiXRayCommand(String name) {
++        super(name);
++        this.usageMessage = "/antixray on|off worldName";
++        this.description = "Enables or disables chunk orebfuscation";
++    }
++
++    public boolean execute(CommandSender sender, String currentAlias, String[] args) {
++        if(sender instanceof ConsoleCommandSender || sender instanceof Player) {
++            if(sender instanceof Player) {
++                Player p = (Player) sender;
++                if(!p.isOp()) {
++                    p.sendMessage(ChatColor.RED + "You are not allowed to use this command!");
++                    return true;
++                }
++            }
++            if(args.length == 2) {
++                String world = args[1];
++                if(!world.isEmpty()) {
++                    List<WorldServer> worlds = MinecraftServer.getServer().worlds;
++                    WorldServer selectedWorld = null;
++                    for(int i = 0; i < worlds.size(); i++) {
++                        WorldServer w = worlds.get(i);
++                        if(world.equalsIgnoreCase(w.getWorld().getName())) {
++                            selectedWorld = w;
++                            break;
++                        }
++                    }
++                    if(selectedWorld != null) {
++                        if(args[0].equalsIgnoreCase("on")) {
++                            if(!selectedWorld.antiXRay.isEnabled()) {
++                                selectedWorld.antiXRay.enable();
++                                this.sendChatMessage(sender, prefix + "AntiXRay is now enabled in world " + selectedWorld.getWorld().getName());
++                            } else {
++                                this.sendChatMessage(sender, prefix + "AntiXRay was already enabled in world " + selectedWorld.getWorld().getName());
++                            }
++                        } else if(args[0].equalsIgnoreCase("off")) {
++                            if(selectedWorld.antiXRay.isEnabled()) {
++                                selectedWorld.antiXRay.disable();
++                                this.sendChatMessage(sender, prefix + "AntiXRay is now disabled in world " + selectedWorld.getWorld().getName());
++                            } else {
++                                this.sendChatMessage(sender, prefix + "AntiXRay was already disabled in world " + selectedWorld.getWorld().getName());
++                            }
++                        } else {
++                            this.sendChatMessage(sender, prefix + this.usageMessage);
++                        }
++                    } else {
++                        this.sendChatMessage(sender, prefix + "World \"" + world + "\" not found.");
++                    }
++                }
++            } else {
++                this.sendChatMessage(sender, prefix + this.usageMessage);
++            }
++            return true;
++        }
++        return false;
++    }
++
++    private void sendChatMessage(CommandSender sender, String message) {
++        if(sender instanceof ConsoleCommandSender) {
++            sender.sendMessage(ChatColor.stripColor(message));
++        } else if(sender != null) {
++            sender.sendMessage(message);
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index a9c3bf3..0bbdece 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -64,6 +64,13 @@ public class Chunk {
+         this.newChunk = false;
+         return out;
+     }
++
++    public Block getTypeWithinSection(int section, int x, int y, int z) {
++        if(section < 0 || this.sections == null || section >= this.sections.length || this.sections[section] == null) {
++            return Blocks.AIR;
++        }
++        return this.sections[section].b(x, y, z);
++    }
+     // MinetickMod end
+ 
+     // CraftBukkit start - Neighbor loaded cache for chunk lighting and entity ticking
+diff --git a/src/main/java/net/minecraft/server/EntityFallingBlock.java b/src/main/java/net/minecraft/server/EntityFallingBlock.java
+index 9e0d5ad..87b4624 100644
+--- a/src/main/java/net/minecraft/server/EntityFallingBlock.java
++++ b/src/main/java/net/minecraft/server/EntityFallingBlock.java
+@@ -60,6 +60,7 @@ public class EntityFallingBlock extends Entity {
+                 blockposition = new BlockPosition(this);
+                 if (this.world.getType(blockposition).getBlock() == block && !CraftEventFactory.callEntityChangeBlockEvent(this, blockposition.getX(), blockposition.getY(), blockposition.getZ(), Blocks.AIR, 0).isCancelled()) {
+                     this.world.setAir(blockposition);
++                    this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MintickMod
+                 } else if (!this.world.isClientSide) {
+                     this.die();
+                     return;
+@@ -86,6 +87,7 @@ public class EntityFallingBlock extends Entity {
+                                 }
+                                 this.world.setTypeAndData(blockposition, this.block, 3);
+                                 // CraftBukkit end
++                                this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MintickMod
+                                 if (block instanceof BlockFalling) {
+                                     ((BlockFalling) block).a_(this.world, blockposition);
+                                 }
+diff --git a/src/main/java/net/minecraft/server/Explosion.java b/src/main/java/net/minecraft/server/Explosion.java
+index 6f3443b..4349e2a 100644
+--- a/src/main/java/net/minecraft/server/Explosion.java
++++ b/src/main/java/net/minecraft/server/Explosion.java
+@@ -209,6 +209,7 @@ public class Explosion {
+             while (iterator.hasNext()) {
+                 blockposition = (BlockPosition) iterator.next();
+                 Block block = this.world.getType(blockposition).getBlock();
++                this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+ 
+                 if (flag) {
+                     double d0 = (double) ((float) blockposition.getX() + this.world.random.nextFloat());
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index 16dcb81..b38889c 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -132,6 +132,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+             a(chunk.getBiomeIndex(), packetplayoutmapchunk_chunkmap.a, j);
+         }
+ 
++        chunk.world.antiXRay.orebfuscate(packetplayoutmapchunk_chunkmap.a, chunk, packetplayoutmapchunk_chunkmap.b); // MinetickMod
+         return packetplayoutmapchunk_chunkmap;
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index 0301fba..a25fe24 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -170,6 +170,7 @@ public class PlayerInteractManager {
+                 if (f > 1.0f) {
+                     ((EntityPlayer) this.player).playerConnection.sendPacket(new PacketPlayOutBlockChange(this.world, blockposition));
+                 }
++                this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+                 return;
+             }
+             org.bukkit.event.block.BlockDamageEvent blockEvent = CraftEventFactory.callBlockDamageEvent(this.player, blockposition.getX(), blockposition.getY(), blockposition.getZ(), this.player.inventory.getItemInHand(), f >= 1.0f);
+@@ -177,6 +178,7 @@ public class PlayerInteractManager {
+             if (blockEvent.isCancelled()) {
+                 // Let the client know the block still exists
+                 ((EntityPlayer) this.player).playerConnection.sendPacket(new PacketPlayOutBlockChange(this.world, blockposition));
++                this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+                 return;
+             }
+ 
+@@ -197,6 +199,7 @@ public class PlayerInteractManager {
+             }
+ 
+         }
++        this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+     }
+ 
+     public void a(BlockPosition blockposition) {
+@@ -283,6 +286,7 @@ public class PlayerInteractManager {
+             }
+ 
+             this.world.getServer().getPluginManager().callEvent(event);
++            this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+ 
+             if (event.isCancelled()) {
+                 if (isSwordNoBreak) {
+@@ -356,6 +360,7 @@ public class PlayerInteractManager {
+                 iblockdata.getBlock().dropExperience(this.world, blockposition, event.getExpToDrop());
+             }
+             // CraftBukkit end
++            this.world.antiXRay.issueBlockUpdates(this.world, blockposition); // MinetickMod
+ 
+             return flag;
+         }
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 789cc1e..b15dd19 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -35,6 +35,7 @@ import org.bukkit.event.weather.ThunderChangeEvent;
+ // MinetickMod start
+ import java.util.Collections;
+ import de.minetick.MinetickMod;
++import de.minetick.AntiXRay;
+ import de.minetick.profiler.WorldProfile;
+ import de.minetick.profiler.WorldProfile.WorldProfileSection;
+ // MinetickMod end
+@@ -178,6 +179,7 @@ public abstract class World implements IBlockAccess {
+     final Object chunkLock = new Object();
+     public ChunkProviderServer chunkProviderServer; // moved here from WorldServer
+     private long lastTickAvg = 0L;
++    public AntiXRay antiXRay = null;
+ 
+     public void queueEntityForDimensionChange(Entity entity) {
+         this.dimensionChangeQueue.add(entity);
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index a27668c..373b335 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -31,6 +31,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
+ // MinetickMod start
+ import de.minetick.ChunkGenerationPolicy;
+ import de.minetick.WorldTicker;
++import de.minetick.AntiXRay;
+ import de.minetick.profiler.Profiler;
+ // MinetickMod end
+ 
+@@ -105,6 +106,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         this.B();
+         this.C();
+         this.getWorldBorder().a(minecraftserver.aH());
++        this.antiXRay = new AntiXRay(this); // MinetickMod
+     }
+ 
+     public World b() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 1b803c3..2438efa 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1723,5 +1723,9 @@ public final class CraftServer implements Server {
+         threadcount = Math.max(1, threadcount);
+         return Math.min(32, threadcount);
+     }
++
++    public List<String> getMinetickModOrebfuscatedWorlds() {
++        return configuration.getStringList("minetickmod.orebfuscatedWorlds");
++    }
+     // MinetickMod end
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index 63e8b59..78abad6 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -84,3 +84,4 @@ minetickmod:
+         FLAT: 2.0
+         LARGEBIOMES: 1.0
+         AMPLIFIED: 0.5
++    orebfuscatedWorlds: []
+-- 
+1.8.3.msysgit.0
+
