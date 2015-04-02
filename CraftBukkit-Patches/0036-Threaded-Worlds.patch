@@ -1,6 +1,6 @@
-From fdf7531d494d5ca32d43d3f910c3150e56995abf Mon Sep 17 00:00:00 2001
+From 5c0ae864b91df5495ceb80c5a6079cabc8e4bdb2 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Thu, 26 Mar 2015 22:52:56 +0100
+Date: Fri, 3 Apr 2015 01:04:29 +0200
 Subject: [PATCH] Threaded Worlds
 
 
@@ -486,7 +486,7 @@ index 0000000..74ad768
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 7eed46c..f5c75ca 100644
+index 7eed46c..fe04e3b 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -31,6 +31,10 @@ import org.bukkit.event.entity.EntityPortalEvent;
@@ -500,7 +500,7 @@ index 7eed46c..f5c75ca 100644
  public abstract class Entity implements ICommandListener {
  
      // CraftBukkit start
-@@ -116,10 +120,18 @@ public abstract class Entity implements ICommandListener {
+@@ -116,10 +120,22 @@ public abstract class Entity implements ICommandListener {
  
      // MinetickMod start
      private int targetDimension;
@@ -510,11 +510,15 @@ index 7eed46c..f5c75ca 100644
          return this.targetDimension;
      }
 +
++    private boolean isPassengerImportant() {
++        return this.passenger != null && this.passenger.isImportantEntity();
++    }
++
 +    public boolean isImportantEntity() {
 +        if(this.isImportant == null) {
 +            this.isImportant = new Boolean(MinetickMod.isImportantEntity(this));
 +        }
-+        return this.isImportant.booleanValue();
++        return this.isImportant.booleanValue() || this.isPassengerImportant();
 +    }
      // MinetickMod end
  
@@ -668,7 +672,7 @@ index c46d151..4fca7db 100644
  
          for(i = 0; i < this.worlds.size(); ++i) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 7296555..b936752 100644
+index 7296555..eaeeaa9 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -34,6 +34,9 @@ import org.bukkit.event.weather.ThunderChangeEvent;
@@ -716,24 +720,20 @@ index 7296555..b936752 100644
          int i;
          Entity entity;
          CrashReport crashreport;
-@@ -1316,7 +1333,15 @@ public abstract class World implements IBlockAccess {
+@@ -1316,7 +1333,11 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
 -                    this.g(entity);
 +                    // MinetickMod start
-+                    boolean entityMustTick = entity.isImportantEntity();
-+                    if(entity.passenger != null) {
-+                        entityMustTick |= entity.passenger.isImportantEntity();
-+                    }
-+                    if(entityMustTick || !this.cancelHeavyCalculations) {
++                    if(entity.isImportantEntity() || !this.cancelHeavyCalculations) {
 +                        this.g(entity);
 +                    }
 +                    // MinetickMod end
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1341,6 +1366,11 @@ public abstract class World implements IBlockAccess {
+@@ -1341,6 +1362,11 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.b();
          }
  
@@ -745,7 +745,7 @@ index 7296555..b936752 100644
          this.methodProfiler.c("blockEntities");
          this.M = true;
          // CraftBukkit start - From below, clean up tile entities before ticking them
-@@ -1412,6 +1442,8 @@ public abstract class World implements IBlockAccess {
+@@ -1412,6 +1438,8 @@ public abstract class World implements IBlockAccess {
              this.b.clear();
          }
  
