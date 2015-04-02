@@ -1,4 +1,4 @@
-From f4921ef7292e392ab14f26dc31508d39ba041c63 Mon Sep 17 00:00:00 2001
+From 22cdd820a0f05434b74bbbf4952d9f76b974e398 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 28 Mar 2015 09:31:47 +0100
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -2200,10 +2200,10 @@ index 688d6f0..65aa181 100644
 +    */
  }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index b936752..789cc1e 100644
+index eaeeaa9..f8bc273 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -2048,7 +2048,7 @@ public abstract class World implements IBlockAccess {
+@@ -2044,7 +2044,7 @@ public abstract class World implements IBlockAccess {
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX / 16.0D);
              k = MathHelper.floor(entityhuman.locZ / 16.0D);
