@@ -1,11 +1,11 @@
-From 798d703934f2f611da73496a110fa02059f0b769 Mon Sep 17 00:00:00 2001
+From b35c09c78b4f8babcdede7f0e9215be8b5d76ca2 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sun, 22 Mar 2015 05:13:01 +0100
-Subject: [PATCH] Async Saving of PersisentCollections
+Date: Mon, 6 Apr 2015 11:54:00 +0200
+Subject: [PATCH] Async Saving of PersistentCollections
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 2d0da22..645fbce 100644
+index 2d0da22..2e4c22f 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -1,15 +1,22 @@
@@ -35,7 +35,7 @@ index 2d0da22..645fbce 100644
  
      private TickTimer tickTimerObject;
      private int timerDelay = 45;
-+    private ExecutorService nbtFileService = Executors.newCachedThreadPool(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
++    private ExecutorService nbtFileService = Executors.newSingleThreadExecutor(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
      private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
