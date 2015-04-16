@@ -1,11 +1,11 @@
-From 5c0ae864b91df5495ceb80c5a6079cabc8e4bdb2 Mon Sep 17 00:00:00 2001
+From 6477ae7268a208f0580d833c5c8e38a5f944dc32 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 3 Apr 2015 01:04:29 +0200
 Subject: [PATCH] Threaded Worlds
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index c743152..32b6e58 100644
+index 5dc3b8d..84171bd 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -11,14 +11,28 @@ import java.util.List;
@@ -47,7 +47,7 @@ index c743152..32b6e58 100644
  import de.minetick.profiler.Profiler;
 @@ -36,6 +51,7 @@ public class MinetickMod {
      private int timerDelay = 45;
-     private ExecutorService nbtFileService = Executors.newCachedThreadPool(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
+     private ExecutorService nbtFileService = Executors.newSingleThreadExecutor(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
      private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
 +    private ExecutorService worldTickerService = Executors.newCachedThreadPool(new MinetickThreadFactory(Thread.NORM_PRIORITY + 1, "MinetickMod_WorldTicker"));
      private ScheduledFuture<Object> tickTimerTask;
