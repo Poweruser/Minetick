@@ -1,0 +1,244 @@
+From 040f44d6932d13a56f39a4813b36d7b26cd8b84d Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Fri, 17 Apr 2015 03:40:55 +0200
+Subject: [PATCH] Allow Custom Offline Player IDs
+
+
+diff --git a/src/main/java/de/minetick/CustomIDProvider.java b/src/main/java/de/minetick/CustomIDProvider.java
+new file mode 100644
+index 0000000..020c5e8
+--- /dev/null
++++ b/src/main/java/de/minetick/CustomIDProvider.java
+@@ -0,0 +1,15 @@
++package de.minetick;
++
++import java.util.UUID;
++
++import org.bukkit.OfflinePlayer;
++
++public interface CustomIDProvider {
++
++    public UUID getUUIDByName(String name);
++
++    public UUID createUnknownID(String name);
++
++    @Deprecated
++    public OfflinePlayer getOfflinePlayer(String name);
++}
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 6c32391..ae7670c 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -79,6 +79,7 @@ public class MinetickMod {
+     private File configFile;
+     private FileConfiguration modConfig;
+     private PacketBuilderThreadPool packetBuilderPool;
++    private CustomIDProvider idProvider;
+ 
+     public MinetickMod() {
+         this.tickTimerObject = new TickTimer();
+@@ -318,4 +319,21 @@ public class MinetickMod {
+         }
+         return defaultVD;
+     }
++
++    public static boolean hasCustomIDProvider() {
++        return instance != null && instance.idProvider != null;
++    }
++
++    public static void setCustomIDProvider(CustomIDProvider provider) {
++        if(instance != null) {
++            instance.idProvider = provider;
++        }
++    }
++
++    public static CustomIDProvider getCustomIDProvider() {
++        if(instance != null) {
++            return instance.idProvider;
++        }
++        return null;
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/CommandOp.java b/src/main/java/net/minecraft/server/CommandOp.java
+index eaaff04..9c36d29 100644
+--- a/src/main/java/net/minecraft/server/CommandOp.java
++++ b/src/main/java/net/minecraft/server/CommandOp.java
+@@ -5,6 +5,11 @@ import com.mojang.authlib.GameProfile;
+ import java.util.ArrayList;
+ import java.util.List;
+ 
++//MinetickMod start
++import de.minetick.MinetickMod;
++import java.util.UUID;
++//MinetickMod end
++
+ public class CommandOp extends CommandAbstract {
+ 
+     public CommandOp() {}
+@@ -24,7 +29,18 @@ public class CommandOp extends CommandAbstract {
+     public void execute(ICommandListener icommandlistener, String[] astring) throws CommandException {
+         if (astring.length == 1 && astring[0].length() > 0) {
+             MinecraftServer minecraftserver = MinecraftServer.getServer();
+-            GameProfile gameprofile = minecraftserver.getUserCache().getProfile(astring[0]);
++
++            // MinetickMod start
++            GameProfile gameprofile = null;
++            if(MinetickMod.hasCustomIDProvider()) {
++                UUID uuid = MinetickMod.getCustomIDProvider().getUUIDByName(astring[0]);
++                if(uuid != null) {
++                    gameprofile = new GameProfile(uuid, astring[0]);
++                }
++            } else {
++                gameprofile = minecraftserver.getUserCache().getProfile(astring[0]);
++            }
++            // MinetickMod end
+ 
+             if (gameprofile == null) {
+                 throw new CommandException("commands.op.failed", new Object[] { astring[0]});
+diff --git a/src/main/java/net/minecraft/server/CommandWhitelist.java b/src/main/java/net/minecraft/server/CommandWhitelist.java
+index 4aa80a5..7091206 100644
+--- a/src/main/java/net/minecraft/server/CommandWhitelist.java
++++ b/src/main/java/net/minecraft/server/CommandWhitelist.java
+@@ -3,6 +3,11 @@ package net.minecraft.server;
+ import com.mojang.authlib.GameProfile;
+ import java.util.List;
+ 
++// MinetickMod start
++import java.util.UUID;
++import de.minetick.MinetickMod;
++// MinetickMod end
++
+ public class CommandWhitelist extends CommandAbstract {
+ 
+     public CommandWhitelist() {}
+@@ -37,14 +42,24 @@ public class CommandWhitelist extends CommandAbstract {
+ 
+                 icommandlistener.sendMessage(new ChatComponentText(a((Object[]) astring1)));
+             } else {
+-                GameProfile gameprofile;
++                GameProfile gameprofile = null;
+ 
+                 if (astring[0].equals("add")) {
+                     if (astring.length < 2) {
+                         throw new ExceptionUsage("commands.whitelist.add.usage", new Object[0]);
+                     }
+ 
+-                    gameprofile = minecraftserver.getUserCache().getProfile(astring[1]);
++                    // MinetickMod start
++                    if(MinetickMod.hasCustomIDProvider()) {
++                        UUID uuid = MinetickMod.getCustomIDProvider().getUUIDByName(astring[1]);
++                        if(uuid != null) {
++                            gameprofile = new GameProfile(uuid, astring[1]);
++                        }
++                    } else {
++                        gameprofile = minecraftserver.getUserCache().getProfile(astring[1]);
++                    }
++                    // MinetickMod end
++
+                     if (gameprofile == null) {
+                         throw new CommandException("commands.whitelist.add.failed", new Object[] { astring[1]});
+                     }
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 55340ab..50322d5 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -22,6 +22,8 @@ import org.bukkit.event.player.PlayerVelocityEvent;
+ import org.bukkit.util.Vector;
+ // CraftBukkit end
+ 
++import de.minetick.MinetickMod; // MinetickMod
++
+ public abstract class EntityHuman extends EntityLiving {
+ 
+     public PlayerInventory inventory = new PlayerInventory(this);
+@@ -1704,6 +1706,16 @@ public abstract class EntityHuman extends EntityLiving {
+     }
+ 
+     public static UUID b(String s) {
++        // MinetickMod start
++        if(MinetickMod.hasCustomIDProvider()) {
++            UUID uuid = MinetickMod.getCustomIDProvider().getUUIDByName(s);
++            if(uuid != null) {
++                return uuid;
++            } else {
++                return MinetickMod.getCustomIDProvider().createUnknownID(s);
++            }
++        }
++        // MinetickMod end
+         return UUID.nameUUIDFromBytes(("OfflinePlayer:" + s).getBytes(Charsets.UTF_8));
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
+index 9dfce9d..a69f64b 100644
+--- a/src/main/java/net/minecraft/server/LoginListener.java
++++ b/src/main/java/net/minecraft/server/LoginListener.java
+@@ -24,6 +24,8 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+ import org.bukkit.event.player.PlayerPreLoginEvent;
+ // CraftBukkit end
+ 
++import de.minetick.MinetickMod; // MinetickMod
++
+ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBox {
+ 
+     private static final AtomicInteger b = new AtomicInteger(0);
+@@ -87,7 +89,14 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
+         if ( networkManager.spoofedUUID != null ) {
+             uuid = networkManager.spoofedUUID;
+         } else {
+-            uuid = UUID.nameUUIDFromBytes( ( "OfflinePlayer:" + this.i.getName() ).getBytes( Charsets.UTF_8 ) );
++            if(MinetickMod.hasCustomIDProvider()) {
++                uuid = MinetickMod.getCustomIDProvider().getUUIDByName(this.i.getName());
++                if(uuid == null) {
++                    uuid = MinetickMod.getCustomIDProvider().createUnknownID(this.i.getName());
++                }
++            } else {
++                uuid = UUID.nameUUIDFromBytes( ( "OfflinePlayer:" + this.i.getName() ).getBytes( Charsets.UTF_8 ) );
++            }
+         }
+ 
+         this.i = new GameProfile( uuid, this.i.getName() );
+@@ -268,6 +277,16 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
+ 
+     protected GameProfile a(GameProfile gameprofile) {
+         UUID uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + gameprofile.getName()).getBytes(Charsets.UTF_8));
++        // MinetickMod start
++        if(MinetickMod.hasCustomIDProvider()) {
++            UUID suppliedUUID = MinetickMod.getCustomIDProvider().getUUIDByName(gameprofile.getName());
++            if(suppliedUUID != null) {
++                uuid = suppliedUUID;
++            } else {
++                uuid = MinetickMod.getCustomIDProvider().createUnknownID(gameprofile.getName());
++            }
++        }
++        // MinetickMod end
+ 
+         return new GameProfile(uuid, gameprofile.getName());
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 2438efa..a240b7a 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -125,6 +125,8 @@ import jline.console.ConsoleReader;
+ // MinetickMod start
+ import de.minetick.ChunkGenerationPolicy;
+ import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import de.minetick.MinetickMod;
++
+ import java.util.HashMap;
+ // MinetickMod end
+ 
+@@ -1266,6 +1268,11 @@ public final class CraftServer implements Server {
+ 
+         OfflinePlayer result = getPlayerExact(name);
+         if (result == null) {
++            // MinetickMod start
++            if(MinetickMod.hasCustomIDProvider()) {
++                return MinetickMod.getCustomIDProvider().getOfflinePlayer(name);
++            }
++            // MinetickMod end
+             // This is potentially blocking :(
+             GameProfile profile = MinecraftServer.getServer().getUserCache().getProfile(name);
+             if (profile == null) {
+-- 
+1.8.3.msysgit.0
+
