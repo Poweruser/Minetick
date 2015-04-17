@@ -1,6 +1,6 @@
-From bf410458e2f836433ca51144ea0f799f26b4247f Mon Sep 17 00:00:00 2001
+From efbd5f45ba14ffd2fd108526f66dc5ecd3520f7f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 17 Apr 2015 00:01:55 +0200
+Date: Fri, 17 Apr 2015 03:14:12 +0200
 Subject: [PATCH] mc dev imports
 
 
@@ -1605,10 +1605,10 @@ index 0000000..4f2c865
 +}
 diff --git a/src/main/java/net/minecraft/server/CommandOp.java b/src/main/java/net/minecraft/server/CommandOp.java
 new file mode 100644
-index 0000000..9c2ee46
+index 0000000..eaaff04
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/CommandOp.java
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,67 @@
 +package net.minecraft.server;
 +
 +import com.google.common.collect.Lists;
@@ -1668,13 +1668,20 @@ index 0000000..9c2ee46
 +            return null;
 +        }
 +    }
++
++    // CraftBukkit start - fix decompile error
++    @Override
++    public int compareTo(ICommand o) {
++        return a((ICommand) o);
++    }
++    // CraftBukkit end
 +}
 diff --git a/src/main/java/net/minecraft/server/CommandWhitelist.java b/src/main/java/net/minecraft/server/CommandWhitelist.java
 new file mode 100644
-index 0000000..7c29357
+index 0000000..4aa80a5
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/CommandWhitelist.java
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,99 @@
 +package net.minecraft.server;
 +
 +import com.mojang.authlib.GameProfile;
@@ -1766,6 +1773,13 @@ index 0000000..7c29357
 +            return null;
 +        }
 +    }
++
++    // CraftBukkit start - fix decompile error
++    @Override
++    public int compareTo(ICommand o) {
++        return a((ICommand) o);
++    }
++    // CraftBukkit end
 +}
 diff --git a/src/main/java/net/minecraft/server/EnchantmentManager.java b/src/main/java/net/minecraft/server/EnchantmentManager.java
 new file mode 100644
