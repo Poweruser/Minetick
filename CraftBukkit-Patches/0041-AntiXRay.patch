@@ -1,4 +1,4 @@
-From 2233bc810bbc3e05173ca4d8522a52969170b0bc Mon Sep 17 00:00:00 2001
+From 6c3d1d344436130732b694ef29d1654a565ee359 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 30 Mar 2015 01:31:34 +0200
 Subject: [PATCH] AntiXRay
@@ -280,7 +280,7 @@ index 0000000..2b3a32d
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 4dccf4d..b4140e8 100644
+index 673b372..6c32391 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -47,6 +47,8 @@ import org.bukkit.craftbukkit.CraftServer;
@@ -501,7 +501,7 @@ index 0301fba..a25fe24 100644
              return flag;
          }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 789cc1e..b15dd19 100644
+index f8bc273..fc8df15 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -35,6 +35,7 @@ import org.bukkit.event.weather.ThunderChangeEvent;
@@ -521,10 +521,10 @@ index 789cc1e..b15dd19 100644
      public void queueEntityForDimensionChange(Entity entity) {
          this.dimensionChangeQueue.add(entity);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index a27668c..373b335 100644
+index 825cc2f..2440d11 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -31,6 +31,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
+@@ -32,6 +32,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
  // MinetickMod start
  import de.minetick.ChunkGenerationPolicy;
  import de.minetick.WorldTicker;
@@ -532,7 +532,7 @@ index a27668c..373b335 100644
  import de.minetick.profiler.Profiler;
  // MinetickMod end
  
-@@ -105,6 +106,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -104,6 +105,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
          this.B();
          this.C();
          this.getWorldBorder().a(minecraftserver.aH());

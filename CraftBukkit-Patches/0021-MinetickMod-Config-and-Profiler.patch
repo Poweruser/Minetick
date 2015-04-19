@@ -1,4 +1,4 @@
-From e5ee4103668a9688cc9fb9371c5284a2e25c9381 Mon Sep 17 00:00:00 2001
+From d0c348175a907759cd2895ecc3bd9bbc74bd58d9 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 04:13:27 +0100
 Subject: [PATCH] MinetickMod Config and Profiler
@@ -775,7 +775,7 @@ index 2f896f6..c46d151 100644
              WorldServer worldserver = this.worlds.get(i);
              worldserver.processDimensionChangeQueue();
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 5b81ce5..ed76c8f 100644
+index 2afc7a5..e321543 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -169,6 +169,7 @@ public abstract class World implements IBlockAccess {
@@ -787,10 +787,10 @@ index 5b81ce5..ed76c8f 100644
      public void queueEntityForDimensionChange(Entity entity) {
          this.dimensionChangeQueue.add(entity);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 722c83c..9958221 100644
+index dcd359a..1be17a4 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -54,6 +54,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -53,6 +53,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {
      // CraftBukkit start
      public final int dimension;
  

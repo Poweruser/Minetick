@@ -1,14 +1,14 @@
-From 4aa1fdeb3782449803313b4b8493f1d8c5e1cb60 Mon Sep 17 00:00:00 2001
+From 09d56aec50061dcd9dd64a1f3ccd2d5816179f41 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 10:32:12 +0100
 Subject: [PATCH] Fix Disappearing Leash Hitches
 
 
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index c8156aa..769979f 100644
+index d0769c6..7e7debf 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
-@@ -268,6 +268,11 @@ public abstract class EntityInsentient extends EntityLiving {
+@@ -275,6 +275,11 @@ public abstract class EntityInsentient extends EntityLiving {
  
              nbttagcompound.set("Leash", nbttagcompound1);
          }
@@ -20,7 +20,7 @@ index c8156aa..769979f 100644
  
          if (this.ce()) {
              nbttagcompound.setBoolean("NoAI", this.ce());
-@@ -868,11 +873,12 @@ public abstract class EntityInsentient extends EntityLiving {
+@@ -875,11 +880,12 @@ public abstract class EntityInsentient extends EntityLiving {
                      EntityLiving entityliving = (EntityLiving) iterator.next();
  
                      if (entityliving.getUniqueID().equals(uuid)) {
@@ -35,7 +35,7 @@ index c8156aa..769979f 100644
                  BlockPosition blockposition = new BlockPosition(this.bq.getInt("X"), this.bq.getInt("Y"), this.bq.getInt("Z"));
                  EntityLeash entityleash = EntityLeash.b(this.world, blockposition);
  
-@@ -880,8 +886,9 @@ public abstract class EntityInsentient extends EntityLiving {
+@@ -887,8 +893,9 @@ public abstract class EntityInsentient extends EntityLiving {
                      entityleash = EntityLeash.a(this.world, blockposition);
                  }
  

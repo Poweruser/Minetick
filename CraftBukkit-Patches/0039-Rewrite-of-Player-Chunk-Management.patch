@@ -1,4 +1,4 @@
-From 22cdd820a0f05434b74bbbf4952d9f76b974e398 Mon Sep 17 00:00:00 2001
+From 8f0c5fedf98b4d3bd973e4e066cb8175949b8afc Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 28 Mar 2015 09:31:47 +0100
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 32b6e58..4dccf4d 100644
+index 84171bd..673b372 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -2213,10 +2213,10 @@ index eaeeaa9..f8bc273 100644
              for (int i1 = -l; i1 <= l; ++i1) {
                  for (int j1 = -l; j1 <= l; ++j1) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 10648c3..a27668c 100644
+index 526e693..825cc2f 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -29,6 +29,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
+@@ -30,6 +30,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
  // CraftBukkit end
  
  // MinetickMod start
@@ -2224,7 +2224,7 @@ index 10648c3..a27668c 100644
  import de.minetick.WorldTicker;
  import de.minetick.profiler.Profiler;
  // MinetickMod end
-@@ -61,6 +62,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -60,6 +61,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
  
      // MinetickMod start
      private WorldTicker worldTicker;
@@ -2232,7 +2232,7 @@ index 10648c3..a27668c 100644
  
      public void cancelHeavyCalculations(boolean cancel) {
          this.cancelHeavyCalculations = cancel;
-@@ -72,6 +74,19 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -71,6 +73,19 @@ public class WorldServer extends World implements IAsyncTaskHandler {
          }
          return this.worldTicker;
      }

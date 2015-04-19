@@ -1,11 +1,11 @@
-From 06ae347b4617c98ed821600fbb3357aca4115ff4 Mon Sep 17 00:00:00 2001
+From 861e22601a1d0b430f6f743bd1346b17de012762 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 24 Mar 2015 04:40:21 +0100
 Subject: [PATCH] Async Path Searches
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 9eb0df2..85a96b4 100644
+index c883bf5..8be77ce 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -15,6 +15,7 @@ import java.util.concurrent.ScheduledExecutorService;
@@ -782,7 +782,7 @@ index 0000000..e97a474
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index 769979f..f1f5aa6 100644
+index 7e7debf..40aea09 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
 @@ -13,6 +13,8 @@ import org.bukkit.event.entity.EntityUnleashEvent;
@@ -803,7 +803,7 @@ index 769979f..f1f5aa6 100644
      }
  
      public ControllerLook getControllerLook() {
-@@ -452,6 +454,7 @@ public abstract class EntityInsentient extends EntityLiving {
+@@ -459,6 +461,7 @@ public abstract class EntityInsentient extends EntityLiving {
  
      protected final void doTick() {
          ++this.ticksFarFromPlayer;

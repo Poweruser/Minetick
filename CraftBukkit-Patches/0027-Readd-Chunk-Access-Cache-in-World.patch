@@ -1,4 +1,4 @@
-From 62a314ea5ee9bb1c101f314b173fbfd7f65a21ff Mon Sep 17 00:00:00 2001
+From 14553e99dfbf9aec742f0e799d7a24208265bab2 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:38:51 +0100
 Subject: [PATCH] Readd Chunk Access Cache in World
@@ -87,12 +87,12 @@ index e321543..e680406 100644
  
      public boolean setTypeAndData(BlockPosition blockposition, IBlockData iblockdata, int i) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 9958221..79cfef1 100644
+index 1be17a4..27ed1dc 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -39,7 +39,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
-     private final PriorityQueue<NextTickListEntry> M = new PriorityQueue<NextTickListEntry>();
-     // MinetickMod end
+@@ -38,7 +38,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+     // private final Set<NextTickListEntry> L = Sets.newHashSet(); // CraftBukkit, PAIL: Rename nextTickListHash
+     private final HashTreeSet<NextTickListEntry> M = new HashTreeSet<NextTickListEntry>(); // CraftBukkit - HashTreeSet, PAIL: Rename nextTickList
      private final Map<UUID, Entity> entitiesByUUID = Maps.newHashMap();
 -    public ChunkProviderServer chunkProviderServer;
 +    //public ChunkProviderServer chunkProviderServer; // MinetickMod - moved to World
@@ -100,10 +100,10 @@ index 9958221..79cfef1 100644
      private boolean O;
      private int emptyTime;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 621c89f..91bd616 100644
+index 9e158e1..117bf16 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -184,6 +184,7 @@ public class CraftWorld implements World {
+@@ -185,6 +185,7 @@ public class CraftWorld implements World {
              save = true;
          }
  
