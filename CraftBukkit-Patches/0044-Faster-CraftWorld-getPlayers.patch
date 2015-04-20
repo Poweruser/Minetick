@@ -1,0 +1,36 @@
+From ab843fa350992812149f51b875cf039a8fb52809 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Mon, 20 Apr 2015 13:37:48 +0200
+Subject: [PATCH] Faster CraftWorld getPlayers
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 117bf16..fc7026b 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -723,16 +723,14 @@ public class CraftWorld implements World {
+     public List<Player> getPlayers() {
+         List<Player> list = new ArrayList<Player>();
+ 
+-        for (Object o : world.entityList) {
+-            if (o instanceof net.minecraft.server.Entity) {
+-                net.minecraft.server.Entity mcEnt = (net.minecraft.server.Entity) o;
+-                Entity bukkitEntity = mcEnt.getBukkitEntity();
+-
+-                if ((bukkitEntity != null) && (bukkitEntity instanceof Player)) {
+-                    list.add((Player) bukkitEntity);
+-                }
++        // MinetickMod start - Get players from world.players instead of world.entityList
++        for (EntityHuman human : world.players) {
++            CraftHumanEntity bukkitEntity = human.getBukkitEntity();
++            if ((bukkitEntity != null) && (bukkitEntity instanceof Player)) {
++                list.add((Player) bukkitEntity);
+             }
+         }
++        // MinetickMod end
+ 
+         return list;
+     }
+-- 
+1.8.3.msysgit.0
+
