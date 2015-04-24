@@ -1,0 +1,27 @@
+From a0d1d06a48f500a4c657bc99281dcfdd1117eede Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Fri, 24 Apr 2015 21:03:21 +0200
+Subject: [PATCH] Handle Null Tile Entities
+
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index fc8df15..711eb55 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1383,6 +1383,13 @@ public abstract class World implements IBlockAccess {
+         while (iterator.hasNext()) {
+             TileEntity tileentity = (TileEntity) iterator.next();
+ 
++            // MinetickMod start
++            if (tileentity == null) {
++                iterator.remove();
++                continue;
++            }
++            // MinetickMod end
++
+             if (!tileentity.x() && tileentity.t()) {
+                 BlockPosition blockposition = tileentity.getPosition();
+ 
+-- 
+1.8.3.msysgit.0
+
