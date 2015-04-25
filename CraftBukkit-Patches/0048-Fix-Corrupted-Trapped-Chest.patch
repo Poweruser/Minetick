@@ -1,0 +1,22 @@
+From 7e94214849c2a14f32530c955deb011ce2d4e720 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 25 Apr 2015 20:01:56 +0200
+Subject: [PATCH] Fix Corrupted Trapped Chest
+
+
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 2440d11..d2fe60f 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -163,7 +163,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         TileEntity result = super.getTileEntity(pos);
+         Block type = getType(pos).getBlock();
+ 
+-        if (type == Blocks.CHEST) {
++        if (type == Blocks.CHEST || type == Blocks.TRAPPED_CHEST) { // MinetickMod - fix trapped chests as well
+             if (!(result instanceof TileEntityChest)) {
+                 result = fixTileEntity(pos, type, result);
+             }
+-- 
+1.8.3.msysgit.0
+
