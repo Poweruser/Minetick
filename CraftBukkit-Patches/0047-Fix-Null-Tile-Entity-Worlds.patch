@@ -1,0 +1,21 @@
+From 00f522b08fe35ecb3fcc58a1ba5a6cad2734b777 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Sat, 25 Apr 2015 19:46:36 +0200
+Subject: [PATCH] Fix Null Tile Entity Worlds
+
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 711eb55..d3e4c25 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1878,6 +1878,7 @@ public abstract class World implements IBlockAccess {
+                     }
+                 }
+ 
++                tileentity.a(this); // MinetickMod
+                 this.b.add(tileentity);
+             } else {
+                 this.a(tileentity);
+-- 
+1.8.3.msysgit.0
+
