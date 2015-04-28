@@ -1,4 +1,4 @@
-From 040f44d6932d13a56f39a4813b36d7b26cd8b84d Mon Sep 17 00:00:00 2001
+From dde1ef1af4bd80d4ce3bb32b72066dc7a6687914 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 17 Apr 2015 03:40:55 +0200
 Subject: [PATCH] Allow Custom Offline Player IDs
@@ -26,10 +26,10 @@ index 0000000..020c5e8
 +    public OfflinePlayer getOfflinePlayer(String name);
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 6c32391..ae7670c 100644
+index 130a31e..be6ac5a 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -79,6 +79,7 @@ public class MinetickMod {
+@@ -80,6 +80,7 @@ public class MinetickMod {
      private File configFile;
      private FileConfiguration modConfig;
      private PacketBuilderThreadPool packetBuilderPool;
@@ -37,7 +37,7 @@ index 6c32391..ae7670c 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -318,4 +319,21 @@ public class MinetickMod {
+@@ -325,4 +326,21 @@ public class MinetickMod {
          }
          return defaultVD;
      }
@@ -215,7 +215,7 @@ index 9dfce9d..a69f64b 100644
          return new GameProfile(uuid, gameprofile.getName());
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 2438efa..a240b7a 100644
+index 6738293..eac3dc2 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -125,6 +125,8 @@ import jline.console.ConsoleReader;

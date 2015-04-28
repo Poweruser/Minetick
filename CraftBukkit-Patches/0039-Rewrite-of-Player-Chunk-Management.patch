@@ -1,4 +1,4 @@
-From 8f0c5fedf98b4d3bd973e4e066cb8175949b8afc Mon Sep 17 00:00:00 2001
+From ee7cd73eac0f254430bcdefeb3a1aa831fb1c73a Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 28 Mar 2015 09:31:47 +0100
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 84171bd..673b372 100644
+index 42e3315..baa647f 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -247,17 +247,17 @@ index 84171bd..673b372 100644
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -65,6 +74,9 @@ public class MinetickMod {
-     private HashSet<EntityType> entitiesWithOffloadedPathSearches;
+@@ -66,6 +75,9 @@ public class MinetickMod {
      private int minimumPathSearchOffloadDistance = 8;
      private boolean bungeeCordSupport;
+     private boolean worldThreading;
 +    private File configFile;
 +    private FileConfiguration modConfig;
 +    private PacketBuilderThreadPool packetBuilderPool;
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -74,6 +86,7 @@ public class MinetickMod {
+@@ -75,6 +87,7 @@ public class MinetickMod {
          this.notGeneratingWorlds = new HashSet<String>();
          this.pathSearchThrottler = new PathSearchThrottlerThread();
          this.entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
@@ -265,10 +265,10 @@ index 84171bd..673b372 100644
          instance = this;
      }
  
-@@ -104,6 +117,20 @@ public class MinetickMod {
-             this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
- 
+@@ -107,6 +120,20 @@ public class MinetickMod {
              this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
+ 
+             this.worldThreading = craftserver.getMinetickModWorldThreading();
 +
 +            craftserver.getMinetickModPacketChunkRates(ChunkPriority.values());
 +
@@ -286,7 +286,7 @@ index 84171bd..673b372 100644
          }
      }
  
-@@ -118,6 +145,7 @@ public class MinetickMod {
+@@ -121,6 +148,7 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
@@ -294,7 +294,7 @@ index 84171bd..673b372 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -126,6 +154,14 @@ public class MinetickMod {
+@@ -129,6 +157,14 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
@@ -309,9 +309,9 @@ index 84171bd..673b372 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -255,4 +291,26 @@ public class MinetickMod {
-                 entity instanceof EntityFireworks || entity instanceof EntityComplexPart ||
-                 entity instanceof EntityWeather);
+@@ -262,4 +298,26 @@ public class MinetickMod {
+     public static boolean isWorldThreadingEnabled() {
+         return instance.worldThreading;
      }
 +
 +    public static int minimumViewDistance() {
@@ -957,10 +957,10 @@ index 0000000..abe6962
 +    }
 +}
 diff --git a/src/main/java/de/minetick/WorldTicker.java b/src/main/java/de/minetick/WorldTicker.java
-index 4f05b4c..8f7ab2c 100644
+index 4bc52a4..2d6fefd 100644
 --- a/src/main/java/de/minetick/WorldTicker.java
 +++ b/src/main/java/de/minetick/WorldTicker.java
-@@ -34,6 +34,9 @@ public class WorldTicker implements Runnable {
+@@ -35,6 +35,9 @@ public class WorldTicker implements Runnable {
          }
          worldProfile.stop(WorldProfileSection.UPDATE_PLAYERS);
  
@@ -969,7 +969,7 @@ index 4f05b4c..8f7ab2c 100644
 +        worldProfile.stop(WorldProfileSection.CHUNK_LOADING);
          worldProfile.stop();
          worldProfile.setCurrentPlayerNumber(this.worldToTick.players.size());
-         this.worldToTick.setLastTickAvg(worldProfile.getLastThreadAvg());
+         if(MinetickMod.isWorldThreadingEnabled()) {
 diff --git a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java b/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
 index 70a7c8e..f44aedd 100644
 --- a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
@@ -2253,7 +2253,7 @@ index 526e693..825cc2f 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 398998c..1b803c3 100644
+index e576ade..a834ff1 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
@@ -2269,9 +2269,9 @@ index 398998c..1b803c3 100644
  public final class CraftServer implements Server {
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
-@@ -1677,5 +1683,45 @@ public final class CraftServer implements Server {
-     public boolean getMinetickModBungeeCordSupport() {
-         return configuration.getBoolean("minetickmod.bungeeCordSupport");
+@@ -1681,5 +1687,45 @@ public final class CraftServer implements Server {
+     public boolean getMinetickModWorldThreading() {
+         return configuration.getBoolean("minetickmod.enableWorldThreading");
      }
 +
 +    public Map<org.bukkit.WorldType, Double> getMinetickModMaxChunkGenerationRates() {
@@ -2316,10 +2316,10 @@ index 398998c..1b803c3 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 4a9a764..63e8b59 100644
+index bf0a725..f083be5 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -73,3 +73,14 @@ minetickmod:
+@@ -74,3 +74,14 @@ minetickmod:
      - SQUID
      - WITCH
      - ZOMBIE
