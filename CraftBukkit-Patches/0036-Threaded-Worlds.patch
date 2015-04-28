@@ -1,11 +1,11 @@
-From 13ea630284faefaf1234e9aea5f20ae1881f5ec0 Mon Sep 17 00:00:00 2001
+From 4c4312f6eb80e71aa811392e8db7fbdd38669527 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 3 Apr 2015 01:04:29 +0200
+Date: Tue, 28 Apr 2015 05:50:57 +0200
 Subject: [PATCH] Threaded Worlds
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 5dc3b8d..84171bd 100644
+index 5dc3b8d..42e3315 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -11,14 +11,28 @@ import java.util.List;
@@ -53,7 +53,15 @@ index 5dc3b8d..84171bd 100644
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
      private Profiler profiler;
-@@ -66,6 +82,7 @@ public class MinetickMod {
+@@ -49,6 +65,7 @@ public class MinetickMod {
+     private HashSet<EntityType> entitiesWithOffloadedPathSearches;
+     private int minimumPathSearchOffloadDistance = 8;
+     private boolean bungeeCordSupport;
++    private boolean worldThreading;
+ 
+     public MinetickMod() {
+         this.tickTimerObject = new TickTimer();
+@@ -66,6 +83,7 @@ public class MinetickMod {
              this.initDone = true;
              CraftServer craftserver = MinecraftServer.getServer().server;
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
@@ -61,7 +69,16 @@ index 5dc3b8d..84171bd 100644
              this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
                      craftserver.getMinetickModProfilerWriteEnabled(),
                      craftserver.getMinetickModProfilerWriteInterval());
-@@ -225,4 +242,17 @@ public class MinetickMod {
+@@ -87,6 +105,8 @@ public class MinetickMod {
+             this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
+ 
+             this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
++
++            this.worldThreading = craftserver.getMinetickModWorldThreading();
+         }
+     }
+ 
+@@ -225,4 +245,21 @@ public class MinetickMod {
      public static boolean isBungeeCordSupportEnabled() {
          return instance.bungeeCordSupport;
      }
@@ -78,13 +95,17 @@ index 5dc3b8d..84171bd 100644
 +                entity instanceof EntityFireworks || entity instanceof EntityComplexPart ||
 +                entity instanceof EntityWeather);
 +    }
++
++    public static boolean isWorldThreadingEnabled() {
++        return instance.worldThreading;
++    }
  }
 diff --git a/src/main/java/de/minetick/WorldTicker.java b/src/main/java/de/minetick/WorldTicker.java
 new file mode 100644
-index 0000000..4f05b4c
+index 0000000..4bc52a4
 --- /dev/null
 +++ b/src/main/java/de/minetick/WorldTicker.java
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,50 @@
 +package de.minetick;
 +
 +import net.minecraft.server.WorldServer;
@@ -107,7 +128,7 @@ index 0000000..4f05b4c
 +
 +    @Override
 +    public void run() {
-+        WorldProfile worldProfile = this.profiler.getWorldProfile(this.worldName);
++        WorldProfile worldProfile = this.getWorldProfile();
 +        worldProfile.start();
 +        try {
 +            this.worldToTick.tickEntities();
@@ -115,6 +136,7 @@ index 0000000..4f05b4c
 +            System.out.println(throwable1.getMessage());
 +            throwable1.printStackTrace();
 +        }
++
 +        worldProfile.start(WorldProfileSection.UPDATE_PLAYERS);
 +        synchronized(updatePlayersLock) {
 +            this.worldToTick.getTracker().updatePlayers();
@@ -123,7 +145,15 @@ index 0000000..4f05b4c
 +
 +        worldProfile.stop();
 +        worldProfile.setCurrentPlayerNumber(this.worldToTick.players.size());
-+        this.worldToTick.setLastTickAvg(worldProfile.getLastThreadAvg());
++        if(MinetickMod.isWorldThreadingEnabled()) {
++            this.worldToTick.setLastTickAvg(worldProfile.getLastThreadAvg());
++        } else {
++            this.worldToTick.setLastTickAvg(worldProfile.getLastAvg());
++        }
++    }
++
++    public WorldProfile getWorldProfile() {
++        return this.profiler.getWorldProfile(this.worldName);
 +    }
 +}
 diff --git a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java b/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
@@ -524,7 +554,7 @@ index 7eed46c..fe04e3b 100644
  
      public int getId() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index c46d151..4fca7db 100644
+index c46d151..17d24ae 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -28,11 +28,14 @@ import java.util.Collections;
@@ -542,16 +572,19 @@ index c46d151..4fca7db 100644
  import java.util.concurrent.FutureTask;
  import javax.imageio.ImageIO;
  import org.apache.commons.lang3.Validate;
-@@ -57,6 +60,8 @@ import de.minetick.AutoSaveJob;
+@@ -56,7 +59,11 @@ import org.bukkit.event.world.WorldSaveEvent;
+ import de.minetick.AutoSaveJob;
  import de.minetick.AutoSaveJob.JobDetail;
  import de.minetick.MinetickMod;
++import de.minetick.WorldTicker;
  import de.minetick.profiler.Profile;
 +import de.minetick.profiler.ProfilingComperator;
++import de.minetick.profiler.WorldProfile;
 +import de.minetick.profiler.WorldProfile.WorldProfileSection;
  
  import java.util.LinkedList;
  // MinetickMod end
-@@ -136,6 +141,9 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -136,6 +143,9 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
      private int autoSaveDelay = 0;
      private boolean autoSaveOrdered = false;
@@ -561,7 +594,7 @@ index c46d151..4fca7db 100644
  
      private void queueWorldsForAutoSave() {
          if (!this.N) {
-@@ -173,6 +181,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -173,6 +183,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              ws.cancelHeavyCalculations(cancel);
          }
      }
@@ -575,7 +608,7 @@ index c46d151..4fca7db 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -581,13 +596,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -581,13 +598,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                      i += k;
                      this.ab = j;
                      if (this.worlds.get(0).everyoneDeeplySleeping()) {
@@ -591,7 +624,7 @@ index c46d151..4fca7db 100644
                          }
                      }
  
-@@ -769,6 +784,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -769,6 +786,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          int i;
  
@@ -599,7 +632,7 @@ index c46d151..4fca7db 100644
          for (i = 0; i < this.worlds.size(); ++i) {
              long j = System.nanoTime();
  
-@@ -776,6 +792,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -776,6 +794,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  WorldServer worldserver = this.worlds.get(i);
  
                  this.methodProfiler.a(worldserver.getWorldData().getName());
@@ -607,7 +640,7 @@ index c46d151..4fca7db 100644
                  /* Drop global time updates
                  if (this.ticks % 20 == 0) {
                      this.methodProfiler.a("timeSync");
-@@ -784,6 +801,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -784,6 +803,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  }
                  // CraftBukkit end */
  
@@ -615,7 +648,7 @@ index c46d151..4fca7db 100644
                  this.methodProfiler.a("tick");
  
                  CrashReport crashreport;
-@@ -814,7 +832,55 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -814,7 +834,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -639,11 +672,13 @@ index c46d151..4fca7db 100644
 +        }
 +
 +        this.worldTickers.clear();
++        this.cancelHeavyCalculationsForAllWorlds(false);
 +        for(i = 0; i < this.sortedWorldsArray.length; i++) {
 +            WorldServer worldserver = this.sortedWorldsArray[i];
 +            if(worldserver != null) {
-+                worldserver.cancelHeavyCalculations(false);
-+                this.minetickMod.getProfiler().getWorldProfile(worldserver.getWorld().getName()).start(WorldProfileSection.DO_TICK);
++                WorldTicker worldTicker = worldserver.getWorldTicker(this.minetickMod.getProfiler());
++                WorldProfile worldProfile = worldTicker.getWorldProfile();
++                worldProfile.start(WorldProfileSection.DO_TICK);
 +                try {
 +                    worldserver.doTick();
 +                } catch (Throwable throwable) {
@@ -651,21 +686,27 @@ index c46d151..4fca7db 100644
 +                    worldserver.a(crashreport);
 +                    throw new ReportedException(crashreport);
 +                }
-+                this.minetickMod.getProfiler().getWorldProfile(worldserver.getWorld().getName()).stop(WorldProfileSection.DO_TICK);
-+                this.worldTickers.add(this.minetickMod.tickWorld(worldserver));
++                worldProfile.stop(WorldProfileSection.DO_TICK);
++                if(MinetickMod.isWorldThreadingEnabled()) {
++                    this.worldTickers.add(this.minetickMod.tickWorld(worldserver));
++                } else {
++                    worldTicker.run();
++                }
 +            } else {
 +                break;
 +            }
 +        }
-+        for(Future<?> f: this.worldTickers) {
-+            try {
-+                f.get();
-+            } catch (InterruptedException e) {
-+                this.h(e.toString());
-+                e.printStackTrace();
-+            } catch (ExecutionException e) {
-+                this.h(e.toString());
-+                e.printStackTrace();
++        if(MinetickMod.isWorldThreadingEnabled()) {
++            for(Future<?> f: this.worldTickers) {
++                try {
++                    f.get();
++                } catch (InterruptedException e) {
++                    this.h(e.toString());
++                    e.printStackTrace();
++                } catch (ExecutionException e) {
++                    this.h(e.toString());
++                    e.printStackTrace();
++                }
 +            }
 +        }
          this.minetickMod.cancelTimerTask(false);
@@ -789,6 +830,32 @@ index 27ed1dc..526e693 100644
      // MinetickMode end
  
      // Add env and gen to constructor
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 398998c..e576ade 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1677,5 +1677,9 @@ public final class CraftServer implements Server {
+     public boolean getMinetickModBungeeCordSupport() {
+         return configuration.getBoolean("minetickmod.bungeeCordSupport");
+     }
++
++    public boolean getMinetickModWorldThreading() {
++        return configuration.getBoolean("minetickmod.enableWorldThreading");
++    }
+     // MinetickMod end
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index 4a9a764..bf0a725 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -46,6 +46,7 @@ database:
+     url: jdbc:sqlite:{DIR}{NAME}.db
+ minetickmod:
+     bungeeCordSupport: false
++    enableWorldThreading: true
+     profiler-log-interval: 30
+     profiler-write-log: false
+     profiler-write-interval: 10
 -- 
 1.8.3.msysgit.0
 
