@@ -1,4 +1,4 @@
-From 1632a3ff2f8bf2b9c120344542c71898d4f067e9 Mon Sep 17 00:00:00 2001
+From 0e5f57b3f5590611e90d71d299f8ec83f8728b71 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 17 Apr 2015 03:40:55 +0200
 Subject: [PATCH] Allow Custom Offline Player IDs
@@ -26,7 +26,7 @@ index 0000000..020c5e8
 +    public OfflinePlayer getOfflinePlayer(String name);
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 130a31e..be6ac5a 100644
+index d2aba2a..cda1b09 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -80,6 +80,7 @@ public class MinetickMod {
@@ -37,7 +37,7 @@ index 130a31e..be6ac5a 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -325,4 +326,21 @@ public class MinetickMod {
+@@ -327,4 +328,21 @@ public class MinetickMod {
          }
          return defaultVD;
      }
