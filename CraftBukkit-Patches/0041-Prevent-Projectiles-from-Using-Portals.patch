@@ -1,4 +1,4 @@
-From 2fe356245afc46c5b0261a23d10a86b2e3ab29c2 Mon Sep 17 00:00:00 2001
+From a52d203a9ba16a1493b4e0f8ee9e24635ffc2593 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 30 Mar 2015 01:50:07 +0200
 Subject: [PATCH] Prevent Projectiles from Using Portals

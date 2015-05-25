@@ -1,4 +1,4 @@
-From 4c4312f6eb80e71aa811392e8db7fbdd38669527 Mon Sep 17 00:00:00 2001
+From 9e6601b93fabbaaa2d469c62cb4fac93dae5ca66 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 28 Apr 2015 05:50:57 +0200
 Subject: [PATCH] Threaded Worlds
@@ -554,7 +554,7 @@ index 7eed46c..fe04e3b 100644
  
      public int getId() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index c46d151..17d24ae 100644
+index 489e945..871d82c 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -28,11 +28,14 @@ import java.util.Collections;
@@ -601,30 +601,30 @@ index c46d151..17d24ae 100644
 +
 +    private void tickServer() throws ExceptionWorldConflict {
 +        this.minetickMod.getProfiler().start("Server");
-+        this.z();
-+        this.minetickMod.getProfiler().stop("Server").setCurrentPlayerNumber(this.H());
++        this.A();
++        this.minetickMod.getProfiler().stop("Server").setCurrentPlayerNumber(this.I());
 +        this.minetickMod.getProfiler().newTick();
 +    }
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -581,13 +598,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -587,13 +604,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                      i += k;
                      this.ab = j;
-                     if (this.worlds.get(0).everyoneDeeplySleeping()) {
--                        this.z();
+                     if (this.worlds.get(0).everyoneDeeplySleeping()) { // CraftBukkit
+-                        this.A();
 +                        this.tickServer(); // MinetickMod
                          i = 0L;
                      } else {
                          while (i > 50L) {
                              MinecraftServer.currentTick = (int) (System.currentTimeMillis() / 50); // CraftBukkit
                              i -= 50L;
--                            this.z();
+-                            this.A();
 +                            this.tickServer(); // MinetickMod
                          }
                      }
  
-@@ -769,6 +786,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -775,6 +792,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          int i;
  
@@ -632,7 +632,7 @@ index c46d151..17d24ae 100644
          for (i = 0; i < this.worlds.size(); ++i) {
              long j = System.nanoTime();
  
-@@ -776,6 +794,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -782,6 +800,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  WorldServer worldserver = this.worlds.get(i);
  
                  this.methodProfiler.a(worldserver.getWorldData().getName());
@@ -640,7 +640,7 @@ index c46d151..17d24ae 100644
                  /* Drop global time updates
                  if (this.ticks % 20 == 0) {
                      this.methodProfiler.a("timeSync");
-@@ -784,6 +803,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -790,6 +809,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  }
                  // CraftBukkit end */
  
@@ -648,7 +648,7 @@ index c46d151..17d24ae 100644
                  this.methodProfiler.a("tick");
  
                  CrashReport crashreport;
-@@ -814,7 +834,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -820,7 +840,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -713,7 +713,7 @@ index c46d151..17d24ae 100644
  
          for(i = 0; i < this.worlds.size(); ++i) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 7296555..eaeeaa9 100644
+index 5c821bd..1dc3b52 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -34,6 +34,9 @@ import org.bukkit.event.weather.ThunderChangeEvent;
@@ -796,7 +796,7 @@ index 7296555..eaeeaa9 100644
          this.methodProfiler.b();
      }
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 27ed1dc..526e693 100644
+index 4e3e879..e1faa27 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -29,6 +29,11 @@ import org.bukkit.event.block.BlockFormEvent;

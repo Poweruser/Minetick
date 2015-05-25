@@ -1,4 +1,4 @@
-From ee7cd73eac0f254430bcdefeb3a1aa831fb1c73a Mon Sep 17 00:00:00 2001
+From b3073b6bd1ad31c91c424e6d798c26c6e49f9532 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 28 Mar 2015 09:31:47 +0100
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -1549,7 +1549,7 @@ index f773f5e..a20dfbb 100644
  
              this.chunks.put(LongHash.toLong(i, j), chunk);
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 550e506..f92d7ad 100644
+index 4e89c93..e77b053 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -24,6 +24,12 @@ import org.bukkit.event.inventory.InventoryType;
@@ -1628,7 +1628,7 @@ index 550e506..f92d7ad 100644
          Entity entity = this.C();
  
 @@ -537,7 +577,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
-         return entityplayer.v() ? this.C() == this : (this.v() ? false : super.a(entityplayer));
+         return entityplayer.isSpectator() ? this.C() == this : (this.isSpectator() ? false : super.a(entityplayer));
      }
  
 -    private void a(TileEntity tileentity) {
@@ -2200,7 +2200,7 @@ index 688d6f0..65aa181 100644
 +    */
  }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index eaeeaa9..f8bc273 100644
+index 1dc3b52..8cf05ba 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -2044,7 +2044,7 @@ public abstract class World implements IBlockAccess {
@@ -2213,7 +2213,7 @@ index eaeeaa9..f8bc273 100644
              for (int i1 = -l; i1 <= l; ++i1) {
                  for (int j1 = -l; j1 <= l; ++j1) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 526e693..825cc2f 100644
+index e1faa27..878c728 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -30,6 +30,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;

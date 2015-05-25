@@ -1,4 +1,4 @@
-From c798d5e8dd157e61bdac71a01459eb7ff13f113f Mon Sep 17 00:00:00 2001
+From 50f2151c1f2bc81295e48c96f945d5c48fcc08ff Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 09:00:14 +0100
 Subject: [PATCH] Queue Entities for Dimension Change
@@ -59,7 +59,7 @@ index d004df3..510ede2 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index aefed46..550e506 100644
+index 9b2e06a..4e89c93 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -493,6 +493,12 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -76,10 +76,10 @@ index aefed46..550e506 100644
              this.b((Statistic) AchievementList.D);
              this.world.kill(this);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 2693031..b18aef9 100644
+index 7b2bedb..514103e 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -738,6 +738,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -744,6 +744,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -91,10 +91,10 @@ index 2693031..b18aef9 100644
 +        // MinetickMod end
 +
          this.methodProfiler.c("connection");
-         this.ap().c();
+         this.aq().c();
          this.methodProfiler.c("players");
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index b800d79..1d95a18 100644
+index 6e77101..5da393d 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -32,6 +32,10 @@ import org.bukkit.event.weather.WeatherChangeEvent;

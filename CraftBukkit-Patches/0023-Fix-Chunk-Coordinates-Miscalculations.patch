@@ -1,4 +1,4 @@
-From af1e1b91f9b90e01c01be65f7349857402c9aced Mon Sep 17 00:00:00 2001
+From 762ecb670ee74004073ae56963f5bd168fd2584a Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 05:28:29 +0100
 Subject: [PATCH] Fix Chunk Coordinates Miscalculations
@@ -18,7 +18,7 @@ index 510ede2..7eed46c 100644
                  VehicleExitEvent exitEvent = null;
                  if (this.vehicle != null && this.vehicle.getBukkitEntity() instanceof Vehicle) {
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index f8145b0..1e37289 100644
+index 7918bcb..f24cee6 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -239,7 +239,7 @@ public abstract class PlayerList {

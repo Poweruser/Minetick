@@ -1,4 +1,4 @@
-From a270196c4a193c2c2948a8b7966f7bf2faf2788f Mon Sep 17 00:00:00 2001
+From 936261102258b8cea84d9ce5c3162aa665557940 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 15:40:04 +0100
 Subject: [PATCH] Non Blocking Auto Save
@@ -69,10 +69,10 @@ index 0000000..ee15645
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/FileIOThread.java b/src/main/java/net/minecraft/server/FileIOThread.java
-index c54693c..e230232 100644
+index 7da82ec..cd751c2 100644
 --- a/src/main/java/net/minecraft/server/FileIOThread.java
 +++ b/src/main/java/net/minecraft/server/FileIOThread.java
-@@ -14,6 +14,16 @@ public class FileIOThread implements Runnable {
+@@ -12,6 +12,16 @@ public class FileIOThread implements Runnable {
      private volatile long d;
      private volatile boolean e;
  
@@ -90,7 +90,7 @@ index c54693c..e230232 100644
          Thread thread = new Thread(this, "File IO Thread");
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 5537dfa..2f896f6 100644
+index 38427e2..38f7469 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -10,6 +10,7 @@ import com.mojang.authlib.GameProfile;
@@ -114,7 +114,7 @@ index 5537dfa..2f896f6 100644
 +
  public abstract class MinecraftServer implements Runnable, ICommandListener, IAsyncTaskHandler, IMojangStatistics {
  
-     public static final Logger LOGGER = LogManager.getLogger();
+     public static final Logger LOGGER = LogManager.getLogger(); // CraftBukkit - make public
 @@ -122,6 +130,40 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
      // MinetickMod start
@@ -156,7 +156,7 @@ index 5537dfa..2f896f6 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -645,10 +687,16 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -651,10 +693,16 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          if (autosavePeriod > 0 && this.ticks % autosavePeriod == 0) { // CraftBukkit
              this.methodProfiler.a("save");
              this.v.savePlayers();

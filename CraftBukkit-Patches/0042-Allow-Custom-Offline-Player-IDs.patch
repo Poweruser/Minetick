@@ -1,4 +1,4 @@
-From dde1ef1af4bd80d4ce3bb32b72066dc7a6687914 Mon Sep 17 00:00:00 2001
+From c3aa35839daa049b6d53019be46dc5b2328c637e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 17 Apr 2015 03:40:55 +0200
 Subject: [PATCH] Allow Custom Offline Player IDs
@@ -60,7 +60,7 @@ index 130a31e..be6ac5a 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/CommandOp.java b/src/main/java/net/minecraft/server/CommandOp.java
-index eaaff04..9c36d29 100644
+index 87b6f89..9f05aa8 100644
 --- a/src/main/java/net/minecraft/server/CommandOp.java
 +++ b/src/main/java/net/minecraft/server/CommandOp.java
 @@ -5,6 +5,11 @@ import com.mojang.authlib.GameProfile;
@@ -96,7 +96,7 @@ index eaaff04..9c36d29 100644
              if (gameprofile == null) {
                  throw new CommandException("commands.op.failed", new Object[] { astring[0]});
 diff --git a/src/main/java/net/minecraft/server/CommandWhitelist.java b/src/main/java/net/minecraft/server/CommandWhitelist.java
-index 4aa80a5..7091206 100644
+index e2d3ac4..450407e 100644
 --- a/src/main/java/net/minecraft/server/CommandWhitelist.java
 +++ b/src/main/java/net/minecraft/server/CommandWhitelist.java
 @@ -3,6 +3,11 @@ package net.minecraft.server;
@@ -139,7 +139,7 @@ index 4aa80a5..7091206 100644
                          throw new CommandException("commands.whitelist.add.failed", new Object[] { astring[1]});
                      }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 55340ab..50322d5 100644
+index 4012570..efb58e8 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -22,6 +22,8 @@ import org.bukkit.event.player.PlayerVelocityEvent;
@@ -169,7 +169,7 @@ index 55340ab..50322d5 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
-index 9dfce9d..a69f64b 100644
+index ba9c3e1..928e25b 100644
 --- a/src/main/java/net/minecraft/server/LoginListener.java
 +++ b/src/main/java/net/minecraft/server/LoginListener.java
 @@ -24,6 +24,8 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;

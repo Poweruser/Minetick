@@ -1,14 +1,14 @@
-From d114afb8dea124384ddf4cc628f9bc1ec8031e42 Mon Sep 17 00:00:00 2001
+From e42e576a90929a8013642b7aed1c18e083dd08b2 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 07:28:01 +0100
 Subject: [PATCH] Prevent Furnaces from Keeping Chunks Loaded
 
 
 diff --git a/src/main/java/net/minecraft/server/TileEntityFurnace.java b/src/main/java/net/minecraft/server/TileEntityFurnace.java
-index bb0ff2f..e9313f1 100644
+index 91617dd..67d982f 100644
 --- a/src/main/java/net/minecraft/server/TileEntityFurnace.java
 +++ b/src/main/java/net/minecraft/server/TileEntityFurnace.java
-@@ -270,6 +270,7 @@ public class TileEntityFurnace extends TileEntityContainer implements IUpdatePla
+@@ -271,6 +271,7 @@ public class TileEntityFurnace extends TileEntityContainer implements IUpdatePla
              return false;
          } else {
              ItemStack itemstack = RecipesFurnace.getInstance().getResult(this.items[0]);

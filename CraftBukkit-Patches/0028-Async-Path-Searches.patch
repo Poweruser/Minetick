@@ -1,6 +1,6 @@
-From 861e22601a1d0b430f6f743bd1346b17de012762 Mon Sep 17 00:00:00 2001
+From 4778f28bf3d18648dd9420c999e1b8c693eab659 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Tue, 24 Mar 2015 04:40:21 +0100
+Date: Mon, 25 May 2015 20:59:28 +0200
 Subject: [PATCH] Async Path Searches
 
 
@@ -637,7 +637,7 @@ index 0000000..22e0b28
 +}
 diff --git a/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java
 new file mode 100644
-index 0000000..153fdea
+index 0000000..859f0cd
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/cache/SearchCacheEntry.java
 @@ -0,0 +1,76 @@
@@ -665,7 +665,7 @@ index 0000000..153fdea
 +    }
 +
 +    protected int getCurrentTick() {
-+        return MinecraftServer.getServer().as();
++        return MinecraftServer.getServer().at();
 +    }
 +
 +    protected BlockPosition getBlockPosition(Entity entity) {
@@ -782,7 +782,7 @@ index 0000000..e97a474
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index 7e7debf..40aea09 100644
+index dbe7182..5df280c 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
 @@ -13,6 +13,8 @@ import org.bukkit.event.entity.EntityUnleashEvent;
@@ -812,7 +812,7 @@ index 7e7debf..40aea09 100644
          this.D();
          this.world.methodProfiler.b();
 diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
-index 3bd0853..292d3cd 100644
+index d5eaa24..e56f95b 100644
 --- a/src/main/java/net/minecraft/server/NavigationAbstract.java
 +++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
 @@ -3,6 +3,12 @@ package net.minecraft.server;
@@ -883,7 +883,7 @@ index 3bd0853..292d3cd 100644
  
      public void a(double d0) {
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
-index a953aec..de954f4 100644
+index 4751706..1911630 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
 @@ -55,7 +55,7 @@ public class PathfinderGoalAvoidTarget<T extends Entity> extends PathfinderGoal
@@ -1011,7 +1011,7 @@ index fc2f47b..5c3c0a4 100644
  
      }
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
-index 763bbd9..f43b3a6 100644
+index d7a5fb6..91318cf 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
 @@ -50,7 +50,7 @@ public class PathfinderGoalRandomStroll extends PathfinderGoal {

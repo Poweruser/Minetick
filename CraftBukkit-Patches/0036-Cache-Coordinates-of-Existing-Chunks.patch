@@ -1,4 +1,4 @@
-From 9d5fc381355234c7506fd41d554672659a5db1c1 Mon Sep 17 00:00:00 2001
+From b698ae49a6b67bd1abe6be1e08d928e38a4c6aa2 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 27 Mar 2015 01:48:31 +0100
 Subject: [PATCH] Cache Coordinates of Existing Chunks
@@ -27,7 +27,7 @@ index b399dc0..f773f5e 100644
  
      public ChunkProviderServer(WorldServer worldserver, IChunkLoader ichunkloader, IChunkProvider ichunkprovider) {
 diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
-index 32dfa8d..cbcacc4 100644
+index 3e31f4b..944509b 100644
 --- a/src/main/java/net/minecraft/server/RegionFile.java
 +++ b/src/main/java/net/minecraft/server/RegionFile.java
 @@ -25,6 +25,18 @@ public class RegionFile {

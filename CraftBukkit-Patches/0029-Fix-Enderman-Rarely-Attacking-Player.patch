@@ -1,11 +1,11 @@
-From f8420210199f0981f59b414aa6a5d3a9f3758738 Mon Sep 17 00:00:00 2001
+From 1dcfd016b5b2c07676d8a91f7c7b92eea3bb58ba Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 24 Mar 2015 07:36:26 +0100
 Subject: [PATCH] Fix Enderman Rarely Attacking Player
 
 
 diff --git a/src/main/java/net/minecraft/server/EntityEnderman.java b/src/main/java/net/minecraft/server/EntityEnderman.java
-index 2bf00b0..d3bd658 100644
+index a250062..2a31dde 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderman.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderman.java
 @@ -88,7 +88,7 @@ public class EntityEnderman extends EntityMonster {

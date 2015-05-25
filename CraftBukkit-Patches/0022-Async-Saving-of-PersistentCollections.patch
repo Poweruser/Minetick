@@ -1,4 +1,4 @@
-From b35c09c78b4f8babcdede7f0e9215be8b5d76ca2 Mon Sep 17 00:00:00 2001
+From abe6886146a773a5353e1e65bfde0a217ce5232c Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 6 Apr 2015 11:54:00 +0200
 Subject: [PATCH] Async Saving of PersistentCollections

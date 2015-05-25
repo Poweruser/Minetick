@@ -1,4 +1,4 @@
-From 14553e99dfbf9aec742f0e799d7a24208265bab2 Mon Sep 17 00:00:00 2001
+From 71f33e08ff5f834ab8082cf3d44315607c6ff61a Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:38:51 +0100
 Subject: [PATCH] Readd Chunk Access Cache in World
@@ -40,7 +40,7 @@ index a318574..b399dc0 100644
                          this.saveChunk(chunk);
                          this.saveChunkNOP(chunk);
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index e321543..e680406 100644
+index 056799e..0d602ef 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -170,6 +170,10 @@ public abstract class World implements IBlockAccess {
@@ -87,7 +87,7 @@ index e321543..e680406 100644
  
      public boolean setTypeAndData(BlockPosition blockposition, IBlockData iblockdata, int i) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 1be17a4..27ed1dc 100644
+index b1521ad..4e3e879 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -38,7 +38,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {

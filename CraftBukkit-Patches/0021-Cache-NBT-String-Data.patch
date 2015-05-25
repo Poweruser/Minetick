@@ -1,4 +1,4 @@
-From 3758c4bc5bbea5716d0a0780c8f45e33f55e9149 Mon Sep 17 00:00:00 2001
+From 936af0efd756d8a6dcffbb44a6bba31f61a05067 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 04:33:52 +0100
 Subject: [PATCH] Cache NBT String Data
@@ -31,26 +31,26 @@ index 8756b63..27c46ce 100644
  
      protected static NBTBase createTag(byte b0) {
 diff --git a/src/main/java/net/minecraft/server/NBTTagCompound.java b/src/main/java/net/minecraft/server/NBTTagCompound.java
-index db6bd5e..9195ab2 100644
+index 22d7c2a..12bff40 100644
 --- a/src/main/java/net/minecraft/server/NBTTagCompound.java
 +++ b/src/main/java/net/minecraft/server/NBTTagCompound.java
-@@ -41,7 +41,7 @@ public class NBTTagCompound extends NBTBase {
+@@ -39,7 +39,7 @@ public class NBTTagCompound extends NBTBase {
              byte b0;
  
              while ((b0 = a(datainput, nbtreadlimiter)) != 0) {
 -                String s = b(datainput, nbtreadlimiter);
 +                String s = getStoredString(b(datainput, nbtreadlimiter), true); // MinetickMod
  
-                 nbtreadlimiter.a((long) (16 * s.length()));
+                 nbtreadlimiter.a((long) (224 + 16 * s.length()));
                  NBTBase nbtbase = a(b0, s, datainput, i + 1, nbtreadlimiter);
 diff --git a/src/main/java/net/minecraft/server/NBTTagString.java b/src/main/java/net/minecraft/server/NBTTagString.java
-index b585f2c..c1b52c7 100644
+index d1967dc..6697320 100644
 --- a/src/main/java/net/minecraft/server/NBTTagString.java
 +++ b/src/main/java/net/minecraft/server/NBTTagString.java
-@@ -24,7 +24,7 @@ public class NBTTagString extends NBTBase {
-     }
+@@ -25,7 +25,7 @@ public class NBTTagString extends NBTBase {
  
      void load(DataInput datainput, int i, NBTReadLimiter nbtreadlimiter) throws IOException {
+         nbtreadlimiter.a(288L);
 -        this.data = datainput.readUTF();
 +        this.data = getStoredString(datainput.readUTF(), true); // MinetickMod
          nbtreadlimiter.a((long) (16 * this.data.length()));

@@ -1,0 +1,217 @@
+From e8410f1e7ee8206a0ea6bdacc59ec7f6123029b7 Mon Sep 17 00:00:00 2001
+From: Poweruser <poweruser.rs@hotmail.com>
+Date: Mon, 25 May 2015 20:35:01 +0200
+Subject: [PATCH] BungeeCord Support
+
+
+diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
+index 8be77ce..5dc3b8d 100644
+--- a/src/main/java/de/minetick/MinetickMod.java
++++ b/src/main/java/de/minetick/MinetickMod.java
+@@ -48,6 +48,7 @@ public class MinetickMod {
+     private PathSearchThrottlerThread pathSearchThrottler;
+     private HashSet<EntityType> entitiesWithOffloadedPathSearches;
+     private int minimumPathSearchOffloadDistance = 8;
++    private boolean bungeeCordSupport;
+ 
+     public MinetickMod() {
+         this.tickTimerObject = new TickTimer();
+@@ -84,6 +85,8 @@ public class MinetickMod {
+                 }
+             }
+             this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
++
++            this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
+         }
+     }
+ 
+@@ -219,4 +222,7 @@ public class MinetickMod {
+         return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
+     }
+ 
++    public static boolean isBungeeCordSupportEnabled() {
++        return instance.bungeeCordSupport;
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
+index 796d3d3..5ff68a0 100644
+--- a/src/main/java/net/minecraft/server/HandshakeListener.java
++++ b/src/main/java/net/minecraft/server/HandshakeListener.java
+@@ -5,8 +5,11 @@ import java.net.InetAddress;
+ import java.util.HashMap;
+ // CraftBukkit end
+ 
++import de.minetick.MinetickMod; // MinetickMod
++
+ public class HandshakeListener implements PacketHandshakingInListener {
+ 
++    private static final com.google.gson.Gson gson = new com.google.gson.Gson(); // MinetickMod
+     // CraftBukkit start - add fields
+     private static final HashMap<InetAddress, Long> throttleTracker = new HashMap<InetAddress, Long>();
+     private static int throttleCounter = 0;
+@@ -71,6 +74,24 @@ public class HandshakeListener implements PacketHandshakingInListener {
+                 this.b.close(chatcomponenttext);
+             } else {
+                 this.b.a((PacketListener) (new LoginListener(this.a, this.b)));
++                // MinetickMod Start
++                if (MinetickMod.isBungeeCordSupportEnabled()) {
++                    String[] split = packethandshakinginsetprotocol.b.split("\00");
++                    if ( split.length == 3 || split.length == 4 ) {
++                        packethandshakinginsetprotocol.b = split[0];
++                        b.l = new java.net.InetSocketAddress(split[1], ((java.net.InetSocketAddress) b.getSocketAddress()).getPort());
++                        b.spoofedUUID = com.mojang.util.UUIDTypeAdapter.fromString( split[2] );
++                    } else {
++                        chatcomponenttext = new ChatComponentText("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
++                        this.b.handle(new PacketLoginOutDisconnect(chatcomponenttext));
++                        this.b.close(chatcomponenttext);
++                        return;
++                    }
++                    if ( split.length == 4 ) {
++                        b.spoofedProfile = gson.fromJson(split[3], com.mojang.authlib.properties.Property[].class);
++                    }
++                }
++                // MinetickMod End
+                 ((LoginListener) this.b.getPacketListener()).hostname = packethandshakinginsetprotocol.b + ":" + packethandshakinginsetprotocol.c; // CraftBukkit - set hostname
+             }
+             break;
+diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
+index 01a9139..ba9c3e1 100644
+--- a/src/main/java/net/minecraft/server/LoginListener.java
++++ b/src/main/java/net/minecraft/server/LoginListener.java
+@@ -83,9 +83,20 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
+     // MinetickMod start
+     public void initUUID()
+     {
+-        UUID uuid = UUID.nameUUIDFromBytes( ( "OfflinePlayer:" + this.i.getName() ).getBytes( Charsets.UTF_8 ) );
++        UUID uuid;
++        if ( networkManager.spoofedUUID != null ) {
++            uuid = networkManager.spoofedUUID;
++        } else {
++            uuid = UUID.nameUUIDFromBytes( ( "OfflinePlayer:" + this.i.getName() ).getBytes( Charsets.UTF_8 ) );
++        }
+ 
+         this.i = new GameProfile( uuid, this.i.getName() );
++
++        if (networkManager.spoofedProfile != null) {
++            for ( com.mojang.authlib.properties.Property property : networkManager.spoofedProfile ) {
++                this.i.getProperties().put( property.getName(), property );
++            }
++        }
+     }
+     // MinetickMod end
+ 
+diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
+index ef6593e..e6ac379 100644
+--- a/src/main/java/net/minecraft/server/NetworkManager.java
++++ b/src/main/java/net/minecraft/server/NetworkManager.java
+@@ -64,7 +64,11 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+     private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue();
+     private final ReentrantReadWriteLock j = new ReentrantReadWriteLock();
+     public Channel channel;  // CraftBukkit - public
+-    private SocketAddress l;
++    // MinetickMod start
++    public SocketAddress l;
++    public java.util.UUID spoofedUUID;
++    public com.mojang.authlib.properties.Property[] spoofedProfile;
++    // MinetickMod end
+     private PacketListener m;
+     private IChatBaseComponent n;
+     private boolean o;
+@@ -323,4 +327,10 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+             this.b = agenericfuturelistener;
+         }
+     }
++
++    // MinetickMod start
++    public SocketAddress getRawAddress() {
++        return this.channel.remoteAddress();
++    }
++    // MinetickMod end
+ }
+diff --git a/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java b/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
+index cc5aee0..2141e5f 100644
+--- a/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
++++ b/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
+@@ -13,7 +13,7 @@ public class PacketHandshakingInSetProtocol implements Packet<PacketHandshakingI
+ 
+     public void a(PacketDataSerializer packetdataserializer) throws IOException {
+         this.a = packetdataserializer.e();
+-        this.b = packetdataserializer.c(255);
++        this.b = packetdataserializer.c(Short.MAX_VALUE); // MinetickMod
+         this.c = packetdataserializer.readUnsignedShort();
+         this.d = EnumProtocol.a(packetdataserializer.e());
+     }
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index f24cee6..203ce3c 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -403,7 +403,7 @@ public abstract class PlayerList {
+ 
+         EntityPlayer entity = new EntityPlayer(server, server.getWorldServer(0), gameprofile, new PlayerInteractManager(server.getWorldServer(0)));
+         Player player = entity.getBukkitEntity();
+-        PlayerLoginEvent event = new PlayerLoginEvent(player, hostname, ((java.net.InetSocketAddress) socketaddress).getAddress());
++        PlayerLoginEvent event = new PlayerLoginEvent(player, hostname, ((java.net.InetSocketAddress) socketaddress).getAddress(), ((java.net.InetSocketAddress) loginlistener.networkManager.getRawAddress()).getAddress()); // MinetickMod
+         String s;
+ 
+         if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 4fa5066..398998c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -559,7 +559,13 @@ public final class CraftServer implements Server {
+ 
+     @Override
+     public long getConnectionThrottle() {
+-        return this.configuration.getInt("settings.connection-throttle");
++        // MinetickMod start - Automatically set connection throttle for bungee configurations
++        if (de.minetick.MinetickMod.isBungeeCordSupportEnabled()) {
++            return -1;
++        } else {
++            return this.configuration.getInt("settings.connection-throttle");
++        }
++        // MinetickMod end
+     }
+ 
+     @Override
+@@ -1667,5 +1673,9 @@ public final class CraftServer implements Server {
+     public int getMinetickModMinimumTargetDistanceForOffloading(int defaultDistance) {
+         return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", defaultDistance);
+     }
++
++    public boolean getMinetickModBungeeCordSupport() {
++        return configuration.getBoolean("minetickmod.bungeeCordSupport");
++    }
+     // MinetickMod end
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index e229dc0..17b9809 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -123,6 +123,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         }
+     }
+ 
++    // MinetickMod start
++    public InetSocketAddress getRawAddress() {
++        return (InetSocketAddress) getHandle().playerConnection.networkManager.getRawAddress();
++    }
++    // MinetickMod end
++
+     @Override
+     public double getEyeHeight() {
+         return getEyeHeight(false);
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index 3e02cf2..4a9a764 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -45,6 +45,7 @@ database:
+     password: walrus
+     url: jdbc:sqlite:{DIR}{NAME}.db
+ minetickmod:
++    bungeeCordSupport: false
+     profiler-log-interval: 30
+     profiler-write-log: false
+     profiler-write-interval: 10
+-- 
+1.8.3.msysgit.0
+

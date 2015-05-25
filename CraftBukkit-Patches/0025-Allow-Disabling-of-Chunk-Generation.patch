@@ -1,4 +1,4 @@
-From 332ec38f0351105a4d9aa946bd0be57fb4817ed9 Mon Sep 17 00:00:00 2001
+From 58758bd32e6d12a2ad2984bb7c3925067dda774b Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:26:03 +0100
 Subject: [PATCH] Allow Disabling of Chunk Generation
@@ -116,7 +116,7 @@ index 0000000..ee06944
 +    public void loadNearby(IChunkProvider ichunkprovider, IChunkProvider ichunkprovider1, int i, int j) {}
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 645fbce..9eb0df2 100644
+index 2e4c22f..c883bf5 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -5,6 +5,7 @@ import java.io.FileOutputStream;

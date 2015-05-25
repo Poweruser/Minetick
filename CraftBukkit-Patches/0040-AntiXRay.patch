@@ -1,4 +1,4 @@
-From ad8b4a4c47ab263eb83418f35a4607602188be61 Mon Sep 17 00:00:00 2001
+From 49d59c9a68840d8254433029db575bb7e91c1de9 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 30 Mar 2015 01:31:34 +0200
 Subject: [PATCH] AntiXRay
@@ -457,7 +457,7 @@ index 16dcb81..b38889c 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index 0301fba..a25fe24 100644
+index f2a9809..cf0f5a1 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 @@ -170,6 +170,7 @@ public class PlayerInteractManager {
@@ -501,7 +501,7 @@ index 0301fba..a25fe24 100644
              return flag;
          }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index f8bc273..fc8df15 100644
+index 8cf05ba..6aecd2e 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -35,6 +35,7 @@ import org.bukkit.event.weather.ThunderChangeEvent;
@@ -521,7 +521,7 @@ index f8bc273..fc8df15 100644
      public void queueEntityForDimensionChange(Entity entity) {
          this.dimensionChangeQueue.add(entity);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 825cc2f..2440d11 100644
+index 878c728..76bcb0a 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -32,6 +32,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
@@ -535,7 +535,7 @@ index 825cc2f..2440d11 100644
 @@ -104,6 +105,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
          this.B();
          this.C();
-         this.getWorldBorder().a(minecraftserver.aH());
+         this.getWorldBorder().a(minecraftserver.aI());
 +        this.antiXRay = new AntiXRay(this); // MinetickMod
      }
  

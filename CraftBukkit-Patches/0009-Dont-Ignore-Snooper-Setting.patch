@@ -1,24 +1,24 @@
-From 74738902eeeabc9e7f9c2dd7f80bebe91d29faee Mon Sep 17 00:00:00 2001
+From f461de7c4bcca0ad2e2fbd0820b741e61bb68113 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 14:33:13 +0100
 Subject: [PATCH] Dont Ignore Snooper Setting
 
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index d57a796..6fd1238 100644
+index 1094be8..6945d7d 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
-@@ -226,7 +226,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
-                 this.aA();
+@@ -225,7 +225,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+                 this.aB();
                  this.getEnableCommandBlock();
                  this.p();
 -                this.getSnooperEnabled();
 +                this.snooperEnabled = this.getSnooperEnabled(); // MinetickMod
-                 this.aJ();
+                 this.aK();
                  this.c(this.propertyManager.getInt("max-build-height", 256));
                  this.c((this.getMaxBuildHeight() + 8) / 16 * 16);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index b18aef9..5537dfa 100644
+index 514103e..38427e2 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -120,6 +120,10 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
@@ -32,7 +32,7 @@ index b18aef9..5537dfa 100644
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
          this.e = proxy;
          MinecraftServer.l = this;
-@@ -649,11 +653,11 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -655,11 +659,11 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          this.h[this.ticks % 100] = System.nanoTime() - i;
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");

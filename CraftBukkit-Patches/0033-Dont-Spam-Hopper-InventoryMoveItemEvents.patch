@@ -1,11 +1,11 @@
-From d55f1fa7b0553894dbf10004139b44202e3b45a7 Mon Sep 17 00:00:00 2001
+From 5e43d060400af7a3cd113382293f07e1399c8029 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 25 Mar 2015 03:38:32 +0100
 Subject: [PATCH] Dont Spam Hopper InventoryMoveItemEvents
 
 
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index 72d067a..f9a48e7 100644
+index 8f771af..0cc7712 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
 @@ -43,6 +43,41 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
