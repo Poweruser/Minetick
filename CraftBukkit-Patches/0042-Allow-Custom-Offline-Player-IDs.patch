@@ -1,4 +1,4 @@
-From c3aa35839daa049b6d53019be46dc5b2328c637e Mon Sep 17 00:00:00 2001
+From 1632a3ff2f8bf2b9c120344542c71898d4f067e9 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 17 Apr 2015 03:40:55 +0200
 Subject: [PATCH] Allow Custom Offline Player IDs
@@ -169,7 +169,7 @@ index 4012570..efb58e8 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
-index ba9c3e1..928e25b 100644
+index 00ddd1a..6e7050a 100644
 --- a/src/main/java/net/minecraft/server/LoginListener.java
 +++ b/src/main/java/net/minecraft/server/LoginListener.java
 @@ -24,6 +24,8 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -197,7 +197,7 @@ index ba9c3e1..928e25b 100644
          }
  
          this.i = new GameProfile( uuid, this.i.getName() );
-@@ -268,6 +277,16 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
+@@ -275,6 +284,16 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
  
      protected GameProfile a(GameProfile gameprofile) {
          UUID uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + gameprofile.getName()).getBytes(Charsets.UTF_8));
