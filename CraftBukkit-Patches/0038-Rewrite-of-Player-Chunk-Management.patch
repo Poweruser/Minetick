@@ -1,6 +1,6 @@
-From b3073b6bd1ad31c91c424e6d798c26c6e49f9532 Mon Sep 17 00:00:00 2001
+From 7994c5ed848129fd817a007aedb0f89f90f9cce9 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 28 Mar 2015 09:31:47 +0100
+Date: Tue, 26 May 2015 00:47:37 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
 
 
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 42e3315..baa647f 100644
+index 42e3315..256484d 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -286,15 +286,17 @@ index 42e3315..baa647f 100644
          }
      }
  
-@@ -121,6 +148,7 @@ public class MinetickMod {
+@@ -121,6 +148,9 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
-+        this.packetBuilderPool.shutdown();
++        if(this.packetBuilderPool != null) {
++            this.packetBuilderPool.shutdown();
++        }
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -129,6 +157,14 @@ public class MinetickMod {
+@@ -129,6 +159,14 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
@@ -309,7 +311,7 @@ index 42e3315..baa647f 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -262,4 +298,26 @@ public class MinetickMod {
+@@ -262,4 +300,26 @@ public class MinetickMod {
      public static boolean isWorldThreadingEnabled() {
          return instance.worldThreading;
      }
