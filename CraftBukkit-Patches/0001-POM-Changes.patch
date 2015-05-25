@@ -1,11 +1,11 @@
-From e7d58f8b38d88af59c9da3d6a794457a63e302d0 Mon Sep 17 00:00:00 2001
+From 4889fa35667a2ace5d68a2d0f53e0d31aabec08e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 01:35:08 +0100
 Subject: [PATCH] POM Changes
 
 
 diff --git a/pom.xml b/pom.xml
-index d8f0054..5bace8d 100644
+index 5ad55dc..eb82047 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,12 @@
@@ -17,7 +17,7 @@ index d8f0054..5bace8d 100644
 +    <groupId>de.minetick</groupId>
 +    <artifactId>minetick</artifactId>
      <packaging>jar</packaging>
-     <version>1.8.3-R0.1-SNAPSHOT</version>
+     <version>1.8.6-R0.1-SNAPSHOT</version>
 -    <name>CraftBukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>MinetickMod</name>

@@ -1,6 +1,6 @@
-From efbd5f45ba14ffd2fd108526f66dc5ecd3520f7f Mon Sep 17 00:00:00 2001
+From 0ce28f247803dfc3999ba441ba528a2d4f18ee3f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Fri, 17 Apr 2015 03:14:12 +0200
+Date: Mon, 25 May 2015 19:54:05 +0200
 Subject: [PATCH] mc dev imports
 
 
@@ -1605,7 +1605,7 @@ index 0000000..4f2c865
 +}
 diff --git a/src/main/java/net/minecraft/server/CommandOp.java b/src/main/java/net/minecraft/server/CommandOp.java
 new file mode 100644
-index 0000000..eaaff04
+index 0000000..87b6f89
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/CommandOp.java
 @@ -0,0 +1,67 @@
@@ -1652,7 +1652,7 @@ index 0000000..eaaff04
 +        if (astring.length == 1) {
 +            String s = astring[astring.length - 1];
 +            ArrayList arraylist = Lists.newArrayList();
-+            GameProfile[] agameprofile = MinecraftServer.getServer().K();
++            GameProfile[] agameprofile = MinecraftServer.getServer().L();
 +            int i = agameprofile.length;
 +
 +            for (int j = 0; j < i; ++j) {
@@ -1669,16 +1669,16 @@ index 0000000..eaaff04
 +        }
 +    }
 +
-+    // CraftBukkit start - fix decompile error
++    // MinetickMod start - fix decompile error
 +    @Override
 +    public int compareTo(ICommand o) {
 +        return a((ICommand) o);
 +    }
-+    // CraftBukkit end
++    // MinetickMod end
 +}
 diff --git a/src/main/java/net/minecraft/server/CommandWhitelist.java b/src/main/java/net/minecraft/server/CommandWhitelist.java
 new file mode 100644
-index 0000000..4aa80a5
+index 0000000..e2d3ac4
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/CommandWhitelist.java
 @@ -0,0 +1,99 @@
@@ -1774,12 +1774,12 @@ index 0000000..4aa80a5
 +        }
 +    }
 +
-+    // CraftBukkit start - fix decompile error
++    // MinetickMod start - fix decompile error
 +    @Override
 +    public int compareTo(ICommand o) {
 +        return a((ICommand) o);
 +    }
-+    // CraftBukkit end
++    // MinetickMod end
 +}
 diff --git a/src/main/java/net/minecraft/server/EnchantmentManager.java b/src/main/java/net/minecraft/server/EnchantmentManager.java
 new file mode 100644
@@ -2239,22 +2239,20 @@ index 0000000..9865681
 +}
 diff --git a/src/main/java/net/minecraft/server/FileIOThread.java b/src/main/java/net/minecraft/server/FileIOThread.java
 new file mode 100644
-index 0000000..c54693c
+index 0000000..7da82ec
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/FileIOThread.java
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,75 @@
 +package net.minecraft.server;
 +
 +import com.google.common.collect.Lists;
-+
-+import java.util.ArrayList;
 +import java.util.Collections;
 +import java.util.List;
 +
 +public class FileIOThread implements Runnable {
 +
 +    private static final FileIOThread a = new FileIOThread();
-+    private List<IAsyncChunkSaver> b = Collections.synchronizedList(new ArrayList<IAsyncChunkSaver>());
++    private List<IAsyncChunkSaver> b = Collections.synchronizedList(new java.util.ArrayList<IAsyncChunkSaver>()); // MinetickMod - fix compiler error
 +    private volatile long c;
 +    private volatile long d;
 +    private volatile boolean e;
@@ -2501,7 +2499,7 @@ index 0000000..8756b63
 +}
 diff --git a/src/main/java/net/minecraft/server/NBTTagCompound.java b/src/main/java/net/minecraft/server/NBTTagCompound.java
 new file mode 100644
-index 0000000..db6bd5e
+index 0000000..22d7c2a
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/NBTTagCompound.java
 @@ -0,0 +1,364 @@
@@ -2516,12 +2514,9 @@ index 0000000..db6bd5e
 +import java.util.Set;
 +import java.util.Map.Entry;
 +import java.util.concurrent.Callable;
-+import org.apache.logging.log4j.LogManager;
-+import org.apache.logging.log4j.Logger;
 +
 +public class NBTTagCompound extends NBTBase {
 +
-+    private static final Logger b = LogManager.getLogger();
 +    private Map<String, NBTBase> map = Maps.newHashMap();
 +
 +    public NBTTagCompound() {}
@@ -2540,6 +2535,7 @@ index 0000000..db6bd5e
 +    }
 +
 +    void load(DataInput datainput, int i, NBTReadLimiter nbtreadlimiter) throws IOException {
++        nbtreadlimiter.a(384L);
 +        if (i > 512) {
 +            throw new RuntimeException("Tried to read NBT tag with too high complexity, depth > 512");
 +        } else {
@@ -2550,10 +2546,12 @@ index 0000000..db6bd5e
 +            while ((b0 = a(datainput, nbtreadlimiter)) != 0) {
 +                String s = b(datainput, nbtreadlimiter);
 +
-+                nbtreadlimiter.a((long) (16 * s.length()));
++                nbtreadlimiter.a((long) (224 + 16 * s.length()));
 +                NBTBase nbtbase = a(b0, s, datainput, i + 1, nbtreadlimiter);
 +
-+                this.map.put(s, nbtbase);
++                if (this.map.put(s, nbtbase) != null) {
++                    nbtreadlimiter.a(288L);
++                }
 +            }
 +
 +        }
@@ -2871,10 +2869,10 @@ index 0000000..db6bd5e
 +}
 diff --git a/src/main/java/net/minecraft/server/NBTTagString.java b/src/main/java/net/minecraft/server/NBTTagString.java
 new file mode 100644
-index 0000000..b585f2c
+index 0000000..d1967dc
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/NBTTagString.java
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,65 @@
 +package net.minecraft.server;
 +
 +import java.io.DataInput;
@@ -2901,6 +2899,7 @@ index 0000000..b585f2c
 +    }
 +
 +    void load(DataInput datainput, int i, NBTReadLimiter nbtreadlimiter) throws IOException {
++        nbtreadlimiter.a(288L);
 +        this.data = datainput.readUTF();
 +        nbtreadlimiter.a((long) (16 * this.data.length()));
 +    }
@@ -3166,7 +3165,7 @@ index 0000000..ece47d6
 +}
 diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
 new file mode 100644
-index 0000000..3bd0853
+index 0000000..d5eaa24
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
 @@ -0,0 +1,222 @@
@@ -3191,7 +3190,7 @@ index 0000000..3bd0853
 +    public NavigationAbstract(EntityInsentient entityinsentient, World world) {
 +        this.b = entityinsentient;
 +        this.c = world;
-+        this.a = entityinsentient.getAttributeInstance(GenericAttributes.b);
++        this.a = entityinsentient.getAttributeInstance(GenericAttributes.FOLLOW_RANGE);
 +        this.j = this.a();
 +    }
 +
@@ -3924,7 +3923,7 @@ index 0000000..04a80d6
 +}
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
 new file mode 100644
-index 0000000..a953aec
+index 0000000..4751706
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalAvoidTarget.java
 @@ -0,0 +1,84 @@
@@ -3940,7 +3939,7 @@ index 0000000..a953aec
 +    protected EntityCreature a;
 +    private double d;
 +    private double e;
-+    protected Entity b;
++    protected T b;
 +    private float f;
 +    private PathEntity g;
 +    private NavigationAbstract h;
@@ -3977,7 +3976,7 @@ index 0000000..a953aec
 +        if (list.isEmpty()) {
 +            return false;
 +        } else {
-+            this.b = (Entity) list.get(0);
++            this.b = (T) list.get(0);
 +            Vec3D vec3d = RandomPositionGenerator.b(this.a, 16, 7, new Vec3D(this.b.locX, this.b.locY, this.b.locZ));
 +
 +            if (vec3d == null) {
@@ -4580,7 +4579,7 @@ index 0000000..fc2f47b
 +}
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
 new file mode 100644
-index 0000000..763bbd9
+index 0000000..d7a5fb6
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalRandomStroll.java
 @@ -0,0 +1,63 @@
@@ -4643,7 +4642,7 @@ index 0000000..763bbd9
 +        this.g = true;
 +    }
 +
-+    public void b(int i) {
++    public void setTimeBetweenMovement(int i) {
 +        this.f = i;
 +    }
 +}
