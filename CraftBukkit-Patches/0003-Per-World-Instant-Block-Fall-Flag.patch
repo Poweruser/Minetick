@@ -1,6 +1,6 @@
-From a9f8e5dd8bca560b9c7cafd3f07a23826b6ad026 Mon Sep 17 00:00:00 2001
+From 5afa77a7ed70e8acb07b43961e4dc86f6bd84962 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sat, 21 Mar 2015 03:00:28 +0100
+Date: Thu, 28 May 2015 10:32:45 +0200
 Subject: [PATCH] Per World Instant Block Fall Flag
 
 
@@ -74,6 +74,28 @@ index 2f01bbf..a783563 100644
      }
  
      public boolean a(IChunkProvider ichunkprovider, Chunk chunk, int i, int j) {
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 9bd173b..66f6625 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -263,7 +263,7 @@ public class ChunkProviderServer implements IChunkProvider {
+                 this.chunkProvider.getChunkAt(ichunkprovider, i, j);
+ 
+                 // CraftBukkit start
+-                BlockSand.instaFall = true;
++                this.world.instaFall = true; // MinetickMod - per-world instantFall flag
+                 Random random = new Random();
+                 random.setSeed(world.getSeed());
+                 long xRand = random.nextLong() / 2L * 2L + 1L;
+@@ -281,7 +281,7 @@ public class ChunkProviderServer implements IChunkProvider {
+                         this.world.populating = false;
+                     }
+                 }
+-                BlockSand.instaFall = false;
++                this.world.instaFall = false; // MinetickMod - per-world instantFall flag
+                 this.world.getServer().getPluginManager().callEvent(new org.bukkit.event.world.ChunkPopulateEvent(chunk.bukkitChunk));
+                 // CraftBukkit end
+                 
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java b/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java
 index 4f2c865..00a893f 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderTheEnd.java
@@ -93,7 +115,7 @@ index 4f2c865..00a893f 100644
  
      public boolean a(IChunkProvider ichunkprovider, Chunk chunk, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 08a1a2e..b800d79 100644
+index d83842a..6e77101 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -162,6 +162,10 @@ public abstract class World implements IBlockAccess {
