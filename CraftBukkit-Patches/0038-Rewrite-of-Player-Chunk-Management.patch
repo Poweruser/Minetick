@@ -1,4 +1,4 @@
-From 7994c5ed848129fd817a007aedb0f89f90f9cce9 Mon Sep 17 00:00:00 2001
+From 6a56f7448b3ddc003333bc3c970fd0e9127ba49e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 26 May 2015 00:47:37 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -1539,7 +1539,7 @@ index 8981a20..a9c3bf3 100644
  
      // CraftBukkit start - Neighbor loaded cache for chunk lighting and entity ticking
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index f773f5e..a20dfbb 100644
+index 2b381de..966caa5 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -176,6 +176,7 @@ public class ChunkProviderServer implements IChunkProvider {
@@ -1551,7 +1551,7 @@ index f773f5e..a20dfbb 100644
  
              this.chunks.put(LongHash.toLong(i, j), chunk);
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 4e89c93..e77b053 100644
+index 158d733..45e5b73 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -24,6 +24,12 @@ import org.bukkit.event.inventory.InventoryType;
@@ -1638,7 +1638,7 @@ index 4e89c93..e77b053 100644
          if (tileentity != null) {
              Packet packet = tileentity.getUpdatePacket();
  
-@@ -984,6 +1024,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+@@ -987,6 +1027,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
  
      public void a(PacketPlayInSettings packetplayinsettings) {
          this.locale = packetplayinsettings.a();
