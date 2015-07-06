@@ -1,4 +1,4 @@
-From 58758bd32e6d12a2ad2984bb7c3925067dda774b Mon Sep 17 00:00:00 2001
+From 46eb707b72c511c690f4aea62a935485d48f03c7 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:26:03 +0100
 Subject: [PATCH] Allow Disabling of Chunk Generation
@@ -116,7 +116,7 @@ index 0000000..ee06944
 +    public void loadNearby(IChunkProvider ichunkprovider, IChunkProvider ichunkprovider1, int i, int j) {}
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 2e4c22f..c883bf5 100644
+index 5572950..4a6a555 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -5,6 +5,7 @@ import java.io.FileOutputStream;
@@ -127,7 +127,7 @@ index 2e4c22f..c883bf5 100644
  import java.util.LinkedList;
  import java.util.List;
  import java.util.concurrent.Callable;
-@@ -39,12 +40,14 @@ public class MinetickMod {
+@@ -44,12 +45,14 @@ public class MinetickMod {
      private List<Integer> ticksPerSecond;
      private int ticksCounter = 0;
      private final Logger log = LogManager.getLogger();
@@ -140,12 +140,12 @@ index 2e4c22f..c883bf5 100644
          this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
 +        this.notGeneratingWorlds = new HashSet<String>();
          instance = this;
-     }
- 
-@@ -56,6 +59,11 @@ public class MinetickMod {
-             this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
-                     craftserver.getMinetickModProfilerWriteEnabled(),
-                     craftserver.getMinetickModProfilerWriteInterval());
+         try {
+             this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
+@@ -73,6 +76,11 @@ public class MinetickMod {
+             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
+             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
+             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
 +
 +            List<String> worlds = craftserver.getMinetickModNotGeneratingWorlds();
 +            for(String w: worlds) {
@@ -154,7 +154,7 @@ index 2e4c22f..c883bf5 100644
          }
      }
  
-@@ -170,4 +178,11 @@ public class MinetickMod {
+@@ -191,4 +199,11 @@ public class MinetickMod {
              return null;
          }
      }
@@ -182,7 +182,7 @@ index 3923cd1..90cdac4 100644
      private boolean q;
      private boolean r;
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index ab9c25b..a318574 100644
+index 22c3906..ebbd517 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -1,6 +1,7 @@
@@ -258,27 +258,29 @@ index ab9c25b..a318574 100644
                  chunk.setLastSaved(this.world.getTime());
                  this.chunkLoader.a(this.world, chunk);
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 046399d..3415d34 100644
+index 629e6b8..1e06d63 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1655,5 +1655,9 @@ public final class CraftServer implements Server {
-     public int getMinetickModProfilerLogInterval() {
-         return configuration.getInt("minetickmod.profiler-log-interval");
+@@ -1642,4 +1642,10 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
      }
 +
++    // MinetickMod start
 +    public List<String> getMinetickModNotGeneratingWorlds() {
 +        return configuration.getStringList("minetickmod.notGeneratingWorlds");
 +    }
-     // MinetickMod end
++    // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 1f8cc40..0de56c2 100644
+index a6c1178..a8499d0 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -48,3 +48,4 @@ minetickmod:
-     profiler-log-interval: 30
-     profiler-write-log: false
-     profiler-write-interval: 10
+@@ -44,3 +44,5 @@ database:
+     driver: org.sqlite.JDBC
+     password: walrus
+     url: jdbc:sqlite:{DIR}{NAME}.db
++minetickmod:
 +    notGeneratingWorlds: []
 -- 
 1.8.3.msysgit.0

@@ -1,4 +1,4 @@
-From 6a56f7448b3ddc003333bc3c970fd0e9127ba49e Mon Sep 17 00:00:00 2001
+From e3e3a5549c675986ff214807bf13581f72638b12 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 26 May 2015 00:47:37 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 42e3315..256484d 100644
+index 22582e5..c0370ee 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -224,7 +224,7 @@ index 42e3315..256484d 100644
  import java.util.concurrent.Callable;
  import java.util.concurrent.ExecutorService;
  import java.util.concurrent.Executors;
-@@ -32,15 +34,22 @@ import net.minecraft.server.EntityWither;
+@@ -32,17 +34,24 @@ import net.minecraft.server.EntityWither;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.NBTCompressedStreamTools;
  import net.minecraft.server.NBTTagCompound;
@@ -235,19 +235,21 @@ index 42e3315..256484d 100644
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
 +import org.bukkit.configuration.ConfigurationSection;
+ import org.bukkit.configuration.InvalidConfigurationException;
 +import org.bukkit.configuration.file.FileConfiguration;
 +import org.bukkit.configuration.file.YamlConfiguration;
  import org.bukkit.craftbukkit.CraftServer;
  import org.bukkit.entity.EntityType;
  
 +import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
+ import de.minetick.modcommands.ReloadSettingsCommand;
  import de.minetick.modcommands.TPSCommand;
  import de.minetick.modcommands.WorldStatsCommand;
 +import de.minetick.packetbuilder.PacketBuilderThreadPool;
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -66,6 +75,9 @@ public class MinetickMod {
+@@ -70,6 +79,9 @@ public class MinetickMod {
      private int minimumPathSearchOffloadDistance = 8;
      private boolean bungeeCordSupport;
      private boolean worldThreading;
@@ -257,15 +259,15 @@ index 42e3315..256484d 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -75,6 +87,7 @@ public class MinetickMod {
+@@ -79,6 +91,7 @@ public class MinetickMod {
          this.notGeneratingWorlds = new HashSet<String>();
          this.pathSearchThrottler = new PathSearchThrottlerThread();
          this.entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
 +        this.configFile = new File("viewdistance.yml");
          instance = this;
-     }
- 
-@@ -107,6 +120,20 @@ public class MinetickMod {
+         try {
+             this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
+@@ -123,6 +136,20 @@ public class MinetickMod {
              this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
  
              this.worldThreading = craftserver.getMinetickModWorldThreading();
@@ -286,7 +288,7 @@ index 42e3315..256484d 100644
          }
      }
  
-@@ -121,6 +148,9 @@ public class MinetickMod {
+@@ -141,6 +168,9 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
@@ -296,7 +298,7 @@ index 42e3315..256484d 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -129,6 +159,14 @@ public class MinetickMod {
+@@ -149,6 +179,14 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
@@ -311,7 +313,7 @@ index 42e3315..256484d 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -262,4 +300,26 @@ public class MinetickMod {
+@@ -282,4 +320,26 @@ public class MinetickMod {
      public static boolean isWorldThreadingEnabled() {
          return instance.worldThreading;
      }
@@ -2255,7 +2257,7 @@ index e1faa27..878c728 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index e576ade..a834ff1 100644
+index 9d99d7b..2c59a5f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
@@ -2271,7 +2273,7 @@ index e576ade..a834ff1 100644
  public final class CraftServer implements Server {
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
-@@ -1681,5 +1687,45 @@ public final class CraftServer implements Server {
+@@ -1669,5 +1675,45 @@ public final class CraftServer implements Server {
      public boolean getMinetickModWorldThreading() {
          return configuration.getBoolean("minetickmod.enableWorldThreading");
      }
@@ -2318,10 +2320,10 @@ index e576ade..a834ff1 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index bf0a725..f083be5 100644
+index 9b0bc16..1012b53 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -74,3 +74,14 @@ minetickmod:
+@@ -71,3 +71,14 @@ minetickmod:
      - SQUID
      - WITCH
      - ZOMBIE

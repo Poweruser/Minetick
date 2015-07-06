@@ -1,17 +1,19 @@
-From 18b110dda999fe58d0ca068708e44e8799426de5 Mon Sep 17 00:00:00 2001
+From 59c79b7d00f0c3f0d916b86bd93e9c2830fc8b0a Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Mon, 25 May 2015 21:03:22 +0200
+Date: Tue, 7 Jul 2015 00:05:43 +0200
 Subject: [PATCH] MinetickMod Config and Profiler
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
 new file mode 100644
-index 0000000..2d0da22
+index 0000000..1e7388f
 --- /dev/null
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,136 @@
 +package de.minetick;
 +
++import java.io.File;
++import java.io.IOException;
 +import java.util.Collections;
 +import java.util.LinkedList;
 +import java.util.List;
@@ -25,13 +27,18 @@ index 0000000..2d0da22
 +
 +import org.apache.logging.log4j.LogManager;
 +import org.apache.logging.log4j.Logger;
++import org.bukkit.configuration.InvalidConfigurationException;
 +import org.bukkit.craftbukkit.CraftServer;
 +
++import de.minetick.modcommands.ReloadSettingsCommand;
 +import de.minetick.modcommands.TPSCommand;
++import de.minetick.pathsearch.PathSearchThrottlerThread;
 +import de.minetick.profiler.Profiler;
 +
 +public class MinetickMod {
 +
++    private MinetickModConfig mainConfig;
++    private boolean failedToLoadConfig = false;
 +    private TickTimer tickTimerObject;
 +    private int timerDelay = 45;
 +    private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
@@ -50,17 +57,33 @@ index 0000000..2d0da22
 +        this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
 +        this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
 +        instance = this;
++        try {
++            this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
++        } catch (IOException e) {
++            this.failedToLoadConfig = true;
++        } catch (InvalidConfigurationException e) {
++            this.failedToLoadConfig = true;
++        } catch (NullPointerException e) {
++            // Bukkit's logger is not yet initialized at this point and throws an NPE when trying to log an yaml load fail
++            this.failedToLoadConfig = true;
++        }
 +    }
 +
 +    public void init() {
 +        if(!this.initDone) {
 +            this.initDone = true;
++            if(this.failedToLoadConfig) {
++                throw new IllegalStateException("MinetickMod's config file minetickmod.yml could not be loaded. Check it for syntax errors.");
++            }
 +            CraftServer craftserver = MinecraftServer.getServer().server;
 +            craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
-+            this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
-+                    craftserver.getMinetickModProfilerWriteEnabled(),
-+                    craftserver.getMinetickModProfilerWriteInterval());
++            craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
++            this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
 +        }
++    }
++
++    public static MinetickModConfig getConfig() {
++        return instance.mainConfig;
 +    }
 +
 +    public Profiler getProfiler() {
@@ -123,6 +146,126 @@ index 0000000..2d0da22
 +        return emptyArray;
 +    }
 +}
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+new file mode 100644
+index 0000000..c14a63b
+--- /dev/null
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -0,0 +1,114 @@
++package de.minetick;
++
++import java.io.File;
++import java.io.FileNotFoundException;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.UUID;
++
++import net.minecraft.server.Block;
++import net.minecraft.server.EntityInsentient;
++import net.minecraft.server.EntityLiving;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.NetworkManager;
++import net.minecraft.server.PacketPlayOutMapChunk;
++import net.minecraft.server.PacketPlayOutMapChunkBulk;
++import net.minecraft.server.PlayerChunkMap;
++
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.FileConfiguration;
++import org.bukkit.configuration.file.YamlConfiguration;
++import org.bukkit.entity.EntityType;
++
++import com.google.common.base.Charsets;
++
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import de.minetick.antixray.AntiXRay;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
++import de.minetick.pathsearch.MinetickNavigation;
++import de.minetick.pathsearch.PathSearchThrottlerThread;
++
++public class MinetickModConfig {
++
++    private final Logger logger = LogManager.getLogger();
++    private File configFile;
++    private FileConfiguration configuration;
++
++    public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
++        this.configFile = configFile;
++        this.configuration = this.loadConfig(configFile);
++        try {
++            this.configuration.save(configFile);
++        } catch(IOException e) {
++            logger.error("[MinetickMod] Could not save config file minetickmod.yml!");
++            logger.error(e.toString());
++        }
++
++        this.loadConfigContent();
++    }
++
++    public FileConfiguration[] reload() throws IOException, InvalidConfigurationException {
++        FileConfiguration[] configs = new FileConfiguration[2];
++        configs[0] = this.configuration;
++        this.configuration = this.loadConfig(this.configFile);
++        configs[1] = this.configuration;
++        this.loadConfigContent();
++        return configs;
++    }
++
++    private void loadConfigContent() {
++
++    }
++
++    private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
++        YamlConfiguration config = new YamlConfiguration();
++        config.options().copyDefaults(true);
++        if(file.exists() && file.isFile()) {
++            try {
++                config.load(file);
++            } catch (FileNotFoundException e) {
++                // Can not happen, I check if the file exists first
++            }
++        } else {
++            File bukkitFile = new File("bukkit.yml");
++            if(bukkitFile.exists() && bukkitFile.isFile()) {
++                FileConfiguration bukkitConfig = YamlConfiguration.loadConfiguration(bukkitFile);
++                String sectionName = "minetickmod";
++                if(bukkitConfig.contains(sectionName)) {
++                    ConfigurationSection section = bukkitConfig.getConfigurationSection(sectionName);
++                    config.set(sectionName, section);
++                    bukkitConfig.set(sectionName, null);
++                    try {
++                        bukkitConfig.save(bukkitFile);
++                    } catch(IOException e) {}
++                }
++            }
++        }
++        InputStreamReader defConfigStream = new InputStreamReader(getClass().getClassLoader().getResourceAsStream("configurations/minetickmod.yml"), Charsets.UTF_8);
++        if(defConfigStream != null) {
++            YamlConfiguration defConfig = YamlConfiguration.loadConfiguration(defConfigStream);
++            config.setDefaults(defConfig);
++        }
++        return config;
++    }
++
++    public boolean getProfilerWriteEnabled() {
++        return configuration.getBoolean("minetickmod.profiler-write-log");
++    }
++
++    public int getProfilerWriteInterval() {
++        return configuration.getInt("minetickmod.profiler-write-interval", 30);
++    }
++
++    public int getProfilerLogInterval() {
++        return configuration.getInt("minetickmod.profiler-log-interval", 10);
++    }
++}
 diff --git a/src/main/java/de/minetick/MinetickThreadFactory.java b/src/main/java/de/minetick/MinetickThreadFactory.java
 new file mode 100644
 index 0000000..4fb6363
@@ -164,6 +307,114 @@ index 0000000..4fb6363
 +        return thread;
 +    }
 +}
+diff --git a/src/main/java/de/minetick/modcommands/ReloadSettingsCommand.java b/src/main/java/de/minetick/modcommands/ReloadSettingsCommand.java
+new file mode 100644
+index 0000000..cf02166
+--- /dev/null
++++ b/src/main/java/de/minetick/modcommands/ReloadSettingsCommand.java
+@@ -0,0 +1,101 @@
++package de.minetick.modcommands;
++
++import java.io.FileNotFoundException;
++import java.io.IOException;
++
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
++
++import org.bukkit.ChatColor;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++import org.bukkit.command.ConsoleCommandSender;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.FileConfiguration;
++
++import de.minetick.MinetickMod;
++
++public class ReloadSettingsCommand extends Command {
++
++    private final Logger logger = LogManager.getLogger();
++
++    public ReloadSettingsCommand(String name) {
++        super(name);
++        this.usageMessage = "/minetickmod-reload";
++        this.description = "Reloads the configurations of MinetickMod from its settings file minetickmod.yml";
++    }
++
++    @Override
++    public boolean execute(CommandSender sender, String label, String[] args) {
++        if(!sender.hasPermission("minetickmod.commands.reload")) {
++            sender.sendMessage("You are not allowed to use this command!");
++            return true;
++        }
++        this.sendMessage(sender, ChatColor.GOLD + "[MinetickMod]" + ChatColor.RESET + " Reloading config file minetickmod.yml ... ");
++
++        FileConfiguration[] configs;
++
++        String errorMsg = ChatColor.GOLD + "[MinetickMod]" + ChatColor.RED + " Reloading failed!\n" + ChatColor.RESET;
++        try {
++            configs = MinetickMod.getConfig().reload();
++        } catch (IOException e) {
++            this.sendMessage(sender, errorMsg + e.getMessage());
++            return true;
++        } catch (InvalidConfigurationException e) {
++            this.sendMessage(sender, errorMsg + e.getMessage());
++            return true;
++        }
++        FileConfiguration old = configs[0];
++        FileConfiguration current = configs[1];
++
++        StringBuilder sb = new StringBuilder();
++        for(String key: old.getKeys(true)) {
++            String v1 = old.getString(key);
++            String v2 = current.getString(key);
++            if(v1 != null && v2 == null) {
++                sb.append(ChatColor.RED);
++                sb.append("Removed entry: ");
++                sb.append(ChatColor.RESET);
++                sb.append(key);
++                sb.append("\nValue: ");
++                sb.append(v1);
++                sb.append("\n");
++            }
++        }
++        for(String key: current.getKeys(true)) {
++            String v1 = old.getString(key);
++            String v2 = current.getString(key);
++            if((v1 == null || v1.isEmpty()) && v2 != null) {
++                sb.append(ChatColor.YELLOW);
++                sb.append("New entry: ");
++                sb.append(ChatColor.RESET);
++                sb.append(key);
++                sb.append("\nValue: ");
++                sb.append(v2);
++                sb.append("\n");
++            } else if(v1 != null && v2 != null && !v1.equals(v2)) {
++                sb.append(ChatColor.GREEN);
++                sb.append("Changed entry: ");
++                sb.append(ChatColor.RESET);
++                sb.append(key);
++                sb.append("\nFrom: ");
++                sb.append(v1);
++                sb.append("\nTo: ");
++                sb.append(v2);
++                sb.append("\n");
++            }
++        }
++        if (sb.length() > 0) {
++            this.sendMessage(sender, sb.toString());
++        }
++        this.sendMessage(sender, ChatColor.GOLD + "[MinetickMod]" + ChatColor.RESET + " Config file has been reloaded.");
++        return true;
++    }
++
++    private void sendMessage(CommandSender receiver, String msg) {
++        this.logger.info(ChatColor.stripColor(msg));
++        if(!(receiver instanceof ConsoleCommandSender)) {
++            receiver.sendMessage(msg);
++        }
++    }
++}
+\ No newline at end of file
 diff --git a/src/main/java/de/minetick/modcommands/TPSCommand.java b/src/main/java/de/minetick/modcommands/TPSCommand.java
 new file mode 100644
 index 0000000..a9b0f68
@@ -684,7 +935,7 @@ index 6945d7d..174359c 100644
                  DedicatedServer.LOGGER.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
                  DedicatedServer.LOGGER.warn("The server will make no attempt to authenticate usernames. Beware.");
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 38f7469..cb31edf 100644
+index 38f7469..114888a 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -55,6 +55,8 @@ import org.bukkit.event.world.WorldSaveEvent;
@@ -700,11 +951,11 @@ index 38f7469..cb31edf 100644
      // CraftBukkit end
  
      // MinetickMod start
-+    protected MinetickMod minetickMod = new MinetickMod();
++    protected MinetickMod minetickMod;
      protected boolean snooperEnabled;
      private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
      private int autoSaveDelay = 0;
-@@ -164,6 +167,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -164,11 +167,18 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              this.autoSaveOrdered = false;
          }
      }
@@ -717,7 +968,13 @@ index 38f7469..cb31edf 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -529,6 +538,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         this.e = proxy;
+         MinecraftServer.l = this;
++        this.minetickMod = new MinetickMod(); // MinetickMod
+         // this.universe = file; // CraftBukkit
+         this.q = new ServerConnection(this);
+         this.Z = new UserCache(this, file1);
+@@ -529,6 +539,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  this.n.e();
              }
  
@@ -725,7 +982,7 @@ index 38f7469..cb31edf 100644
          }
      }
  
-@@ -667,6 +677,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -667,6 +678,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      protected void A() throws ExceptionWorldConflict { // CraftBukkit - added throws
          long i = System.nanoTime();
  
@@ -738,7 +995,7 @@ index 38f7469..cb31edf 100644
          ++this.ticks;
          if (this.T) {
              this.T = false;
-@@ -701,10 +717,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -701,10 +718,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          if(this.autoSaveOrdered) {
              this.autoSaveNextWorld();
          }
@@ -752,7 +1009,7 @@ index 38f7469..cb31edf 100644
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
          if (this.snooperEnabled && !this.n.d() && this.ticks > 100) { // MinetickMod
-@@ -717,6 +735,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -717,6 +736,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          this.methodProfiler.b();
          this.methodProfiler.b();
@@ -765,7 +1022,7 @@ index 38f7469..cb31edf 100644
      }
  
      public void B() {
-@@ -797,6 +821,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -797,6 +822,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          }
  
          // MinetickMod start
@@ -803,37 +1060,12 @@ index d4b61c6..b1521ad 100644
      // Add env and gen to constructor
      public WorldServer(MinecraftServer minecraftserver, IDataManager idatamanager, WorldData worlddata, int i, MethodProfiler methodprofiler, org.bukkit.World.Environment env, org.bukkit.generator.ChunkGenerator gen) {
          super(idatamanager, worlddata, WorldProvider.byDimension(env.getId()), methodprofiler, false, gen, env);
-diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 629e6b8..046399d 100644
---- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1642,4 +1642,18 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public boolean getMinetickModProfilerWriteEnabled() {
-+        return configuration.getBoolean("minetickmod.profiler-write-log");
-+    }
-+
-+    public int getMinetickModProfilerWriteInterval() {
-+        return configuration.getInt("minetickmod.profiler-write-interval");
-+    }
-+
-+    public int getMinetickModProfilerLogInterval() {
-+        return configuration.getInt("minetickmod.profiler-log-interval");
-+    }
-+    // MinetickMod end
- }
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..1f8cc40 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,7 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+new file mode 100644
+index 0000000..ebf121b
+--- /dev/null
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -0,0 +1,4 @@
 +minetickmod:
 +    profiler-log-interval: 30
 +    profiler-write-log: false

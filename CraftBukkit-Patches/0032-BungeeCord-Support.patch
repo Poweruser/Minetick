@@ -1,14 +1,14 @@
-From e8410f1e7ee8206a0ea6bdacc59ec7f6123029b7 Mon Sep 17 00:00:00 2001
+From d5ad1dfee862f68078e0b2a96a61d71c54c41f65 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 25 May 2015 20:35:01 +0200
 Subject: [PATCH] BungeeCord Support
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 8be77ce..5dc3b8d 100644
+index fbb5186..2fa4032 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -48,6 +48,7 @@ public class MinetickMod {
+@@ -52,6 +52,7 @@ public class MinetickMod {
      private PathSearchThrottlerThread pathSearchThrottler;
      private HashSet<EntityType> entitiesWithOffloadedPathSearches;
      private int minimumPathSearchOffloadDistance = 8;
@@ -16,7 +16,7 @@ index 8be77ce..5dc3b8d 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -84,6 +85,8 @@ public class MinetickMod {
+@@ -100,6 +101,8 @@ public class MinetickMod {
                  }
              }
              this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
@@ -25,7 +25,7 @@ index 8be77ce..5dc3b8d 100644
          }
      }
  
-@@ -219,4 +222,7 @@ public class MinetickMod {
+@@ -239,4 +242,7 @@ public class MinetickMod {
          return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
      }
  
@@ -75,7 +75,7 @@ index 796d3d3..5ff68a0 100644
              }
              break;
 diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
-index 01a9139..ba9c3e1 100644
+index 73c0f42..00ddd1a 100644
 --- a/src/main/java/net/minecraft/server/LoginListener.java
 +++ b/src/main/java/net/minecraft/server/LoginListener.java
 @@ -83,9 +83,20 @@ public class LoginListener implements PacketLoginInListener, IUpdatePlayerListBo
@@ -155,7 +155,7 @@ index f24cee6..203ce3c 100644
  
          if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 4fa5066..398998c 100644
+index 99d474d..c7ebe1c 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -559,7 +559,13 @@ public final class CraftServer implements Server {
@@ -173,7 +173,7 @@ index 4fa5066..398998c 100644
      }
  
      @Override
-@@ -1667,5 +1673,9 @@ public final class CraftServer implements Server {
+@@ -1655,5 +1661,9 @@ public final class CraftServer implements Server {
      public int getMinetickModMinimumTargetDistanceForOffloading(int defaultDistance) {
          return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", defaultDistance);
      }
@@ -201,7 +201,7 @@ index e229dc0..17b9809 100644
      public double getEyeHeight() {
          return getEyeHeight(false);
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 3e02cf2..4a9a764 100644
+index 4cd0fa7..c93a416 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
 @@ -45,6 +45,7 @@ database:
@@ -209,9 +209,9 @@ index 3e02cf2..4a9a764 100644
      url: jdbc:sqlite:{DIR}{NAME}.db
  minetickmod:
 +    bungeeCordSupport: false
-     profiler-log-interval: 30
-     profiler-write-log: false
-     profiler-write-interval: 10
+     notGeneratingWorlds: []
+     minimumTargetDistanceForOffloadedPathSearches: 0
+     entitiesWithOffloadedPathSearches:
 -- 
 1.8.3.msysgit.0
 

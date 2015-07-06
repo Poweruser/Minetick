@@ -1,11 +1,11 @@
-From 9e6601b93fabbaaa2d469c62cb4fac93dae5ca66 Mon Sep 17 00:00:00 2001
+From 00731768f5a918a578e800dec21a698f13b29c1c Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 28 Apr 2015 05:50:57 +0200
 Subject: [PATCH] Threaded Worlds
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 5dc3b8d..42e3315 100644
+index 2fa4032..22582e5 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -11,14 +11,28 @@ import java.util.List;
@@ -37,15 +37,15 @@ index 5dc3b8d..42e3315 100644
  
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
-@@ -26,6 +40,7 @@ import org.bukkit.craftbukkit.CraftServer;
- import org.bukkit.entity.EntityType;
+@@ -28,6 +42,7 @@ import org.bukkit.entity.EntityType;
  
+ import de.minetick.modcommands.ReloadSettingsCommand;
  import de.minetick.modcommands.TPSCommand;
 +import de.minetick.modcommands.WorldStatsCommand;
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -36,6 +51,7 @@ public class MinetickMod {
+@@ -40,6 +55,7 @@ public class MinetickMod {
      private int timerDelay = 45;
      private ExecutorService nbtFileService = Executors.newSingleThreadExecutor(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
      private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
@@ -53,7 +53,7 @@ index 5dc3b8d..42e3315 100644
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
      private Profiler profiler;
-@@ -49,6 +65,7 @@ public class MinetickMod {
+@@ -53,6 +69,7 @@ public class MinetickMod {
      private HashSet<EntityType> entitiesWithOffloadedPathSearches;
      private int minimumPathSearchOffloadDistance = 8;
      private boolean bungeeCordSupport;
@@ -61,15 +61,15 @@ index 5dc3b8d..42e3315 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -66,6 +83,7 @@ public class MinetickMod {
-             this.initDone = true;
+@@ -84,6 +101,7 @@ public class MinetickMod {
              CraftServer craftserver = MinecraftServer.getServer().server;
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
+             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
 +            craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
-             this.profiler = new Profiler(craftserver.getMinetickModProfilerLogInterval(),
-                     craftserver.getMinetickModProfilerWriteEnabled(),
-                     craftserver.getMinetickModProfilerWriteInterval());
-@@ -87,6 +105,8 @@ public class MinetickMod {
+             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
+ 
+             List<String> worlds = craftserver.getMinetickModNotGeneratingWorlds();
+@@ -103,6 +121,8 @@ public class MinetickMod {
              this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
  
              this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
@@ -78,7 +78,7 @@ index 5dc3b8d..42e3315 100644
          }
      }
  
-@@ -225,4 +245,21 @@ public class MinetickMod {
+@@ -245,4 +265,21 @@ public class MinetickMod {
      public static boolean isBungeeCordSupportEnabled() {
          return instance.bungeeCordSupport;
      }
@@ -554,7 +554,7 @@ index 7eed46c..fe04e3b 100644
  
      public int getId() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 489e945..871d82c 100644
+index 114888a..d189386 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -28,11 +28,14 @@ import java.util.Collections;
@@ -608,7 +608,7 @@ index 489e945..871d82c 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -587,13 +604,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -588,13 +605,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                      i += k;
                      this.ab = j;
                      if (this.worlds.get(0).everyoneDeeplySleeping()) { // CraftBukkit
@@ -624,7 +624,7 @@ index 489e945..871d82c 100644
                          }
                      }
  
-@@ -775,6 +792,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -776,6 +793,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          int i;
  
@@ -632,7 +632,7 @@ index 489e945..871d82c 100644
          for (i = 0; i < this.worlds.size(); ++i) {
              long j = System.nanoTime();
  
-@@ -782,6 +800,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -783,6 +801,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  WorldServer worldserver = this.worlds.get(i);
  
                  this.methodProfiler.a(worldserver.getWorldData().getName());
@@ -640,7 +640,7 @@ index 489e945..871d82c 100644
                  /* Drop global time updates
                  if (this.ticks % 20 == 0) {
                      this.methodProfiler.a("timeSync");
-@@ -790,6 +809,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -791,6 +810,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  }
                  // CraftBukkit end */
  
@@ -648,7 +648,7 @@ index 489e945..871d82c 100644
                  this.methodProfiler.a("tick");
  
                  CrashReport crashreport;
-@@ -820,7 +840,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -821,7 +841,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -831,10 +831,10 @@ index 4e3e879..e1faa27 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 398998c..e576ade 100644
+index c7ebe1c..9d99d7b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1677,5 +1677,9 @@ public final class CraftServer implements Server {
+@@ -1665,5 +1665,9 @@ public final class CraftServer implements Server {
      public boolean getMinetickModBungeeCordSupport() {
          return configuration.getBoolean("minetickmod.bungeeCordSupport");
      }
@@ -845,7 +845,7 @@ index 398998c..e576ade 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 4a9a764..bf0a725 100644
+index c93a416..9b0bc16 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
 @@ -46,6 +46,7 @@ database:
@@ -853,9 +853,9 @@ index 4a9a764..bf0a725 100644
  minetickmod:
      bungeeCordSupport: false
 +    enableWorldThreading: true
-     profiler-log-interval: 30
-     profiler-write-log: false
-     profiler-write-interval: 10
+     notGeneratingWorlds: []
+     minimumTargetDistanceForOffloadedPathSearches: 0
+     entitiesWithOffloadedPathSearches:
 -- 
 1.8.3.msysgit.0
 

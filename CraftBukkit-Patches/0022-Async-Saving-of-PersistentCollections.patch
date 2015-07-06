@@ -1,19 +1,19 @@
-From abe6886146a773a5353e1e65bfde0a217ce5232c Mon Sep 17 00:00:00 2001
+From 7203e7c2e28021ea48e95c472e85c341da43f85a Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 6 Apr 2015 11:54:00 +0200
 Subject: [PATCH] Async Saving of PersistentCollections
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 2d0da22..2e4c22f 100644
+index 1e7388f..5572950 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -1,15 +1,22 @@
+@@ -1,17 +1,22 @@
  package de.minetick;
  
-+import java.io.File;
+ import java.io.File;
 +import java.io.FileOutputStream;
-+import java.io.IOException;
+ import java.io.IOException;
 +import java.io.OutputStream;
  import java.util.Collections;
  import java.util.LinkedList;
@@ -31,15 +31,15 @@ index 2d0da22..2e4c22f 100644
  
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
-@@ -22,6 +29,7 @@ public class MinetickMod {
- 
+@@ -29,6 +34,7 @@ public class MinetickMod {
+     private boolean failedToLoadConfig = false;
      private TickTimer tickTimerObject;
      private int timerDelay = 45;
 +    private ExecutorService nbtFileService = Executors.newSingleThreadExecutor(new MinetickThreadFactory(Thread.NORM_PRIORITY - 2, "MinetickMod_NBTFileSaver"));
      private ScheduledExecutorService timerService = Executors.newScheduledThreadPool(2, new MinetickThreadFactory(Thread.NORM_PRIORITY + 2, "MinetickMod_TimerService"));
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
-@@ -61,6 +69,14 @@ public class MinetickMod {
+@@ -84,6 +90,14 @@ public class MinetickMod {
  
      public void shutdown() {
          this.timerService.shutdown();
@@ -54,7 +54,7 @@ index 2d0da22..2e4c22f 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -110,4 +126,48 @@ public class MinetickMod {
+@@ -133,4 +147,48 @@ public class MinetickMod {
          }
          return emptyArray;
      }
