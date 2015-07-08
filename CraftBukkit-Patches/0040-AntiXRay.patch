@@ -1,6 +1,6 @@
-From 33b8c2cfd839ec4545ccfecee5168b3fd45fd55f Mon Sep 17 00:00:00 2001
+From b4894b72397551f25220ab66aafd124d99bb40de Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Mon, 30 Mar 2015 01:31:34 +0200
+Date: Wed, 8 Jul 2015 07:23:36 +0200
 Subject: [PATCH] AntiXRay
 
 
@@ -279,120 +279,27 @@ index 0000000..2b3a32d
 +        setNewID(buffer, index, this.defaultBlock);
 +    }
 +}
-diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index aed1cca..0fab75d 100644
---- a/src/main/java/de/minetick/MinetickMod.java
-+++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -40,6 +40,8 @@ import org.bukkit.configuration.InvalidConfigurationException;
- import org.bukkit.craftbukkit.CraftServer;
- import org.bukkit.entity.EntityType;
- 
-+import de.minetick.AntiXRay;
-+import de.minetick.modcommands.AntiXRayCommand;
- import de.minetick.modcommands.ReloadSettingsCommand;
- import de.minetick.modcommands.TPSCommand;
- import de.minetick.modcommands.WorldStatsCommand;
-@@ -97,9 +99,12 @@ public class MinetickMod {
-             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
-             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
-             craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
-+            craftserver.getCommandMap().register("antixray", "MinetickMod", new AntiXRayCommand("antixray"));
-             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
- 
-             this.packetBuilderPool = new PacketBuilderThreadPool(this.mainConfig.getPacketBuilderPoolSize());
-+
-+            AntiXRay.setWorldsFromConfig(craftserver.getMinetickModOrebfuscatedWorlds());
-         }
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+index 2b86259..5130756 100644
+--- a/src/main/java/de/minetick/MinetickModConfig.java
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -88,6 +88,7 @@ public class MinetickModConfig {
+         this.applyPacketChunkRates(ChunkPriority.values());
+         ChunkGenerationPolicy.setRatesFromConfig(this.getMaxChunkGenerationRates());
+         PacketBuilderThreadPool.adjustPoolSize(this.getPacketBuilderPoolSize());
++        AntiXRay.setWorldsFromConfig(this.getOrebfuscatedWorlds());
      }
  
-diff --git a/src/main/java/de/minetick/modcommands/AntiXRayCommand.java b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
-new file mode 100644
-index 0000000..6c36852
---- /dev/null
-+++ b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
-@@ -0,0 +1,82 @@
-+package de.minetick.modcommands;
+     private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
+@@ -261,4 +262,8 @@ public class MinetickModConfig {
+         int threadcount = configuration.getInt("minetickmod.packetBuilderThreadPoolSize", 1);
+         return Math.max(1, Math.min(threadcount, 32));
+     }
 +
-+import java.util.List;
-+
-+import net.minecraft.server.MinecraftServer;
-+import net.minecraft.server.WorldServer;
-+
-+import org.bukkit.ChatColor;
-+import org.bukkit.command.Command;
-+import org.bukkit.command.CommandSender;
-+import org.bukkit.command.ConsoleCommandSender;
-+import org.bukkit.entity.Player;
-+
-+public class AntiXRayCommand extends Command {
-+
-+    private String prefix = ChatColor.GOLD + "[MinetickMod] " + ChatColor.WHITE;
-+
-+    public AntiXRayCommand(String name) {
-+        super(name);
-+        this.usageMessage = "/antixray on|off worldName";
-+        this.description = "Enables or disables chunk orebfuscation";
++    public List<String> getOrebfuscatedWorlds() {
++        return configuration.getStringList("minetickmod.orebfuscatedWorlds");
 +    }
-+
-+    public boolean execute(CommandSender sender, String currentAlias, String[] args) {
-+        if(sender instanceof ConsoleCommandSender || sender instanceof Player) {
-+            if(sender instanceof Player) {
-+                Player p = (Player) sender;
-+                if(!p.isOp()) {
-+                    p.sendMessage(ChatColor.RED + "You are not allowed to use this command!");
-+                    return true;
-+                }
-+            }
-+            if(args.length == 2) {
-+                String world = args[1];
-+                if(!world.isEmpty()) {
-+                    List<WorldServer> worlds = MinecraftServer.getServer().worlds;
-+                    WorldServer selectedWorld = null;
-+                    for(int i = 0; i < worlds.size(); i++) {
-+                        WorldServer w = worlds.get(i);
-+                        if(world.equalsIgnoreCase(w.getWorld().getName())) {
-+                            selectedWorld = w;
-+                            break;
-+                        }
-+                    }
-+                    if(selectedWorld != null) {
-+                        if(args[0].equalsIgnoreCase("on")) {
-+                            if(!selectedWorld.antiXRay.isEnabled()) {
-+                                selectedWorld.antiXRay.enable();
-+                                this.sendChatMessage(sender, prefix + "AntiXRay is now enabled in world " + selectedWorld.getWorld().getName());
-+                            } else {
-+                                this.sendChatMessage(sender, prefix + "AntiXRay was already enabled in world " + selectedWorld.getWorld().getName());
-+                            }
-+                        } else if(args[0].equalsIgnoreCase("off")) {
-+                            if(selectedWorld.antiXRay.isEnabled()) {
-+                                selectedWorld.antiXRay.disable();
-+                                this.sendChatMessage(sender, prefix + "AntiXRay is now disabled in world " + selectedWorld.getWorld().getName());
-+                            } else {
-+                                this.sendChatMessage(sender, prefix + "AntiXRay was already disabled in world " + selectedWorld.getWorld().getName());
-+                            }
-+                        } else {
-+                            this.sendChatMessage(sender, prefix + this.usageMessage);
-+                        }
-+                    } else {
-+                        this.sendChatMessage(sender, prefix + "World \"" + world + "\" not found.");
-+                    }
-+                }
-+            } else {
-+                this.sendChatMessage(sender, prefix + this.usageMessage);
-+            }
-+            return true;
-+        }
-+        return false;
-+    }
-+
-+    private void sendChatMessage(CommandSender sender, String message) {
-+        if(sender instanceof ConsoleCommandSender) {
-+            sender.sendMessage(ChatColor.stripColor(message));
-+        } else if(sender != null) {
-+            sender.sendMessage(message);
-+        }
-+    }
-+}
+ }
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
 index a9c3bf3..0bbdece 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
@@ -539,30 +446,14 @@ index 878c728..76bcb0a 100644
      }
  
      public World b() {
-diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 6e2e943..b7451eb 100644
---- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1654,4 +1654,10 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public List<String> getMinetickModOrebfuscatedWorlds() {
-+        return configuration.getStringList("minetickmod.orebfuscatedWorlds");
-+    }
-+    // MinetickMod end
- }
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..633ece6 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,5 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
-+minetickmod:
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+index 61171a9..1f94039 100644
+--- a/src/main/resources/configurations/minetickmod.yml
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -40,3 +40,4 @@ minetickmod:
+         FLAT: 2.0
+         LARGEBIOMES: 1.0
+         AMPLIFIED: 0.5
 +    orebfuscatedWorlds: []
 -- 
 1.8.3.msysgit.0
