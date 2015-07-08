@@ -1,41 +1,24 @@
-From 351754d8527d3afdf1cd3f96c51284ae1744425c Mon Sep 17 00:00:00 2001
+From 3b457462a3a8df8dccd0a12de18ede1f9d2d205e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Mon, 25 May 2015 20:35:01 +0200
+Date: Wed, 8 Jul 2015 04:26:23 +0200
 Subject: [PATCH] BungeeCord Support
 
 
-diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 782e6be..973b46d 100644
---- a/src/main/java/de/minetick/MinetickMod.java
-+++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -49,6 +49,7 @@ public class MinetickMod {
-     private int ticksCounter = 0;
-     private final Logger log = LogManager.getLogger();
-     private PathSearchThrottlerThread pathSearchThrottler;
-+    private boolean bungeeCordSupport;
- 
-     public MinetickMod() {
-         this.tickTimerObject = new TickTimer();
-@@ -79,6 +80,8 @@ public class MinetickMod {
-             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
-             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
-             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
-+
-+            this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
-         }
-     }
- 
-@@ -202,4 +205,8 @@ public class MinetickMod {
-     public static boolean queuePathSearch(PathSearchJob pathSearchJob) {
-         return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+index 6046614..59ed04a 100644
+--- a/src/main/java/de/minetick/MinetickModConfig.java
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -156,4 +156,8 @@ public class MinetickModConfig {
+         int threadcount = configuration.getInt("minetickmod.pathSearchThreadPoolSize", 2);
+         return Math.max(1, Math.min(threadcount, 32));
      }
 +
-+    public static boolean isBungeeCordSupportEnabled() {
-+        return instance.bungeeCordSupport;
++    public boolean isBungeeCordSupportEnabled() {
++        return configuration.getBoolean("minetickmod.bungeeCordSupport");
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
-index 796d3d3..5ff68a0 100644
+index 796d3d3..0a3839f 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
 +++ b/src/main/java/net/minecraft/server/HandshakeListener.java
 @@ -5,8 +5,11 @@ import java.net.InetAddress;
@@ -55,7 +38,7 @@ index 796d3d3..5ff68a0 100644
              } else {
                  this.b.a((PacketListener) (new LoginListener(this.a, this.b)));
 +                // MinetickMod Start
-+                if (MinetickMod.isBungeeCordSupportEnabled()) {
++                if (MinetickMod.getConfig().isBungeeCordSupportEnabled()) {
 +                    String[] split = packethandshakinginsetprotocol.b.split("\00");
 +                    if ( split.length == 3 || split.length == 4 ) {
 +                        packethandshakinginsetprotocol.b = split[0];
@@ -156,7 +139,7 @@ index f24cee6..203ce3c 100644
  
          if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 629e6b8..897ea46 100644
+index 629e6b8..feee9d4 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -559,7 +559,13 @@ public final class CraftServer implements Server {
@@ -165,7 +148,7 @@ index 629e6b8..897ea46 100644
      public long getConnectionThrottle() {
 -        return this.configuration.getInt("settings.connection-throttle");
 +        // MinetickMod start - Automatically set connection throttle for bungee configurations
-+        if (de.minetick.MinetickMod.isBungeeCordSupportEnabled()) {
++        if (de.minetick.MinetickMod.getConfig().isBungeeCordSupportEnabled()) {
 +            return -1;
 +        } else {
 +            return this.configuration.getInt("settings.connection-throttle");
@@ -174,17 +157,6 @@ index 629e6b8..897ea46 100644
      }
  
      @Override
-@@ -1642,4 +1648,10 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public boolean getMinetickModBungeeCordSupport() {
-+        return configuration.getBoolean("minetickmod.bungeeCordSupport");
-+    }
-+    // MinetickMod end
- }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 index e229dc0..17b9809 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
@@ -202,15 +174,14 @@ index e229dc0..17b9809 100644
      @Override
      public double getEyeHeight() {
          return getEyeHeight(false);
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..fd9348c 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,5 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
-+minetickmod:
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+index 03f2445..ff6bf0e 100644
+--- a/src/main/resources/configurations/minetickmod.yml
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -26,3 +26,4 @@ minetickmod:
+     - SQUID
+     - WITCH
+     - ZOMBIE
 +    bungeeCordSupport: false
 -- 
 1.8.3.msysgit.0

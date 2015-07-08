@@ -1,11 +1,11 @@
-From 5dbbed368e31a75f6073767225c977c2a1a5c690 Mon Sep 17 00:00:00 2001
+From 4f2ddf77354ba574e4044b7d60cc5a1df01ea365 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 28 Apr 2015 05:50:57 +0200
 Subject: [PATCH] Threaded Worlds
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 973b46d..e1e753f 100644
+index 782e6be..0f1731c 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -11,14 +11,28 @@ import java.util.List;
@@ -53,30 +53,28 @@ index 973b46d..e1e753f 100644
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
      private Profiler profiler;
-@@ -50,6 +66,7 @@ public class MinetickMod {
+@@ -49,6 +65,7 @@ public class MinetickMod {
+     private int ticksCounter = 0;
      private final Logger log = LogManager.getLogger();
      private PathSearchThrottlerThread pathSearchThrottler;
-     private boolean bungeeCordSupport;
 +    private boolean worldThreading;
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -79,9 +96,12 @@ public class MinetickMod {
+@@ -78,7 +95,10 @@ public class MinetickMod {
              CraftServer craftserver = MinecraftServer.getServer().server;
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
              craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
 +            craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
              this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
- 
-             this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
 +
 +            this.worldThreading = craftserver.getMinetickModWorldThreading();
          }
      }
  
-@@ -209,4 +229,21 @@ public class MinetickMod {
-     public static boolean isBungeeCordSupportEnabled() {
-         return instance.bungeeCordSupport;
+@@ -202,4 +222,21 @@ public class MinetickMod {
+     public static boolean queuePathSearch(PathSearchJob pathSearchJob) {
+         return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
      }
 +
 +    public Future<?> tickWorld(WorldServer worldServer) {
@@ -827,27 +825,29 @@ index 4e3e879..e1faa27 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 897ea46..a2f326d 100644
+index feee9d4..210b273 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1653,5 +1653,9 @@ public final class CraftServer implements Server {
-     public boolean getMinetickModBungeeCordSupport() {
-         return configuration.getBoolean("minetickmod.bungeeCordSupport");
+@@ -1648,4 +1648,10 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
      }
 +
++    // MinetickMod start
 +    public boolean getMinetickModWorldThreading() {
 +        return configuration.getBoolean("minetickmod.enableWorldThreading");
 +    }
-     // MinetickMod end
++    // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index fd9348c..98816c1 100644
+index a6c1178..b40138e 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -46,3 +46,4 @@ database:
+@@ -44,3 +44,5 @@ database:
+     driver: org.sqlite.JDBC
+     password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
- minetickmod:
-     bungeeCordSupport: false
++minetickmod:
 +    enableWorldThreading: true
 -- 
 1.8.3.msysgit.0

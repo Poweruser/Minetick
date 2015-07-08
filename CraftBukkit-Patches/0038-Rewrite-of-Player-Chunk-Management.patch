@@ -1,4 +1,4 @@
-From 247506da864907276b90e8b836529eb263a485d6 Mon Sep 17 00:00:00 2001
+From 8bf8bfc23cf71ee9bffe5f650e9a981d9582cc80 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 26 May 2015 00:47:37 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index e1e753f..2f322aa 100644
+index 0f1731c..ecc2c66 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -249,9 +249,9 @@ index e1e753f..2f322aa 100644
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -67,12 +76,16 @@ public class MinetickMod {
+@@ -66,12 +75,16 @@ public class MinetickMod {
+     private final Logger log = LogManager.getLogger();
      private PathSearchThrottlerThread pathSearchThrottler;
-     private boolean bungeeCordSupport;
      private boolean worldThreading;
 +    private File configFile;
 +    private FileConfiguration modConfig;
@@ -266,8 +266,8 @@ index e1e753f..2f322aa 100644
          instance = this;
          try {
              this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
-@@ -102,6 +115,20 @@ public class MinetickMod {
-             this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
+@@ -99,6 +112,20 @@ public class MinetickMod {
+             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
  
              this.worldThreading = craftserver.getMinetickModWorldThreading();
 +
@@ -287,7 +287,7 @@ index e1e753f..2f322aa 100644
          }
      }
  
-@@ -120,6 +147,9 @@ public class MinetickMod {
+@@ -117,6 +144,9 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
@@ -297,7 +297,7 @@ index e1e753f..2f322aa 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -128,6 +158,14 @@ public class MinetickMod {
+@@ -125,6 +155,14 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
@@ -312,7 +312,7 @@ index e1e753f..2f322aa 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -246,4 +284,26 @@ public class MinetickMod {
+@@ -239,4 +277,26 @@ public class MinetickMod {
      public static boolean isWorldThreadingEnabled() {
          return instance.worldThreading;
      }
@@ -2256,7 +2256,7 @@ index e1faa27..878c728 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index a2f326d..b87abab 100644
+index 210b273..c620732 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
@@ -2272,7 +2272,7 @@ index a2f326d..b87abab 100644
  public final class CraftServer implements Server {
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
-@@ -1657,5 +1663,45 @@ public final class CraftServer implements Server {
+@@ -1653,5 +1659,45 @@ public final class CraftServer implements Server {
      public boolean getMinetickModWorldThreading() {
          return configuration.getBoolean("minetickmod.enableWorldThreading");
      }
@@ -2319,12 +2319,12 @@ index a2f326d..b87abab 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 98816c1..b362c3e 100644
+index b40138e..217c982 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -47,3 +47,14 @@ database:
+@@ -46,3 +46,14 @@ database:
+     url: jdbc:sqlite:{DIR}{NAME}.db
  minetickmod:
-     bungeeCordSupport: false
      enableWorldThreading: true
 +    packetBuilderThreadPoolSize: 4
 +    packetChunkRates:
