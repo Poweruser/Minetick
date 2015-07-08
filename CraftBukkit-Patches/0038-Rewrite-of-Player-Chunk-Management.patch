@@ -1,4 +1,4 @@
-From 1136377134fab2722626fdb88b5c010acbb5f392 Mon Sep 17 00:00:00 2001
+From fce1f54fcebc66142c32e9ce4c2e17196b7d70e0 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 06:05:49 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -261,7 +261,7 @@ index 36c046e..aed1cca 100644
  
      public void checkTickTime(long tickTime) {
 diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
-index 1b5c68d..8ed2372 100644
+index 41b3bfd..2b86259 100644
 --- a/src/main/java/de/minetick/MinetickModConfig.java
 +++ b/src/main/java/de/minetick/MinetickModConfig.java
 @@ -30,6 +30,8 @@ import org.bukkit.entity.EntityType;
@@ -300,9 +300,9 @@ index 1b5c68d..8ed2372 100644
      }
  
      public FileConfiguration[] reload() throws IOException, InvalidConfigurationException {
-@@ -69,6 +84,9 @@ public class MinetickModConfig {
-         this.loadEntitiesWithOffloadedPathSearches(this.getEntitiesWithOffloadedPathSearches());
+@@ -70,6 +85,9 @@ public class MinetickModConfig {
          MinetickNavigation.setMinimumDistanceForOffloading(this.getMinimumTargetDistanceForOffloading());
+         PathSearchThrottlerThread.adjustPoolSize(this.getPathSearchPoolSize());
          this.threadedWorlds = this.getThreadedWorldsEnabled();
 +        this.applyPacketChunkRates(ChunkPriority.values());
 +        ChunkGenerationPolicy.setRatesFromConfig(this.getMaxChunkGenerationRates());
@@ -310,7 +310,7 @@ index 1b5c68d..8ed2372 100644
      }
  
      private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
-@@ -170,4 +188,76 @@ public class MinetickModConfig {
+@@ -171,4 +189,76 @@ public class MinetickModConfig {
      public boolean isThreadedWorldsEnabled() {
          return this.threadedWorlds;
      }
@@ -2309,10 +2309,10 @@ index feee9d4..6e2e943 100644
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index 892bf70..5625fd9 100644
+index 3facdd9..61171a9 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
-@@ -28,3 +28,14 @@ minetickmod:
+@@ -29,3 +29,14 @@ minetickmod:
      - ZOMBIE
      bungeeCordSupport: false
      enableWorldThreading: true

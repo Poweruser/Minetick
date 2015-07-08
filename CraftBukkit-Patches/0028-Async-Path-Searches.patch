@@ -1,6 +1,6 @@
-From 26ae20868fcb2f64dc2f3c05da56d783082e1024 Mon Sep 17 00:00:00 2001
+From 1170b33a85cd75030d03029fd24c6d1e885b8f3c Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Wed, 8 Jul 2015 03:27:25 +0200
+Date: Wed, 8 Jul 2015 06:37:05 +0200
 Subject: [PATCH] Async Path Searches
 
 
@@ -70,7 +70,7 @@ index 5572950..782e6be 100644
 +    }
  }
 diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
-index a4d121d..6046614 100644
+index a4d121d..22a057c 100644
 --- a/src/main/java/de/minetick/MinetickModConfig.java
 +++ b/src/main/java/de/minetick/MinetickModConfig.java
 @@ -30,9 +30,6 @@ import org.bukkit.entity.EntityType;
@@ -91,16 +91,17 @@ index a4d121d..6046614 100644
  
      public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
          this.configFile = configFile;
-@@ -67,6 +65,8 @@ public class MinetickModConfig {
+@@ -67,6 +65,9 @@ public class MinetickModConfig {
  
      private void loadConfigContent() {
          this.loadNotGeneratingWorlds(this.getNotGeneratingWorlds());
 +        this.loadEntitiesWithOffloadedPathSearches(this.getEntitiesWithOffloadedPathSearches());
 +        MinetickNavigation.setMinimumDistanceForOffloading(this.getMinimumTargetDistanceForOffloading());
++        PathSearchThrottlerThread.adjustPoolSize(this.getPathSearchPoolSize());
      }
  
      private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
-@@ -127,4 +127,33 @@ public class MinetickModConfig {
+@@ -127,4 +128,33 @@ public class MinetickModConfig {
      public boolean doesWorldNotGenerateChunks(String worldName) {
          return this.notGeneratingWorlds.contains(worldName.toLowerCase());
      }
@@ -1065,13 +1066,14 @@ index 0a14c9d..db8f0e8 100644
                              }
                          } else if (!block.b(iblockaccess, blockposition_mutableblockposition) && (!flag1 || !(block instanceof BlockDoor) || block.getMaterial() != Material.WOOD)) {
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index 3393dda..03f2445 100644
+index 3393dda..f8b808c 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
-@@ -3,3 +3,26 @@ minetickmod:
+@@ -3,3 +3,27 @@ minetickmod:
      profiler-write-log: false
      profiler-write-interval: 10
      notGeneratingWorlds: []
++    pathSearchThreadPoolSize: 2
 +    minimumTargetDistanceForOffloadedPathSearches: 0
 +    entitiesWithOffloadedPathSearches:
 +    - BAT

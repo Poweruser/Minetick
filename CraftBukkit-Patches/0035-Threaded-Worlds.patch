@@ -1,4 +1,4 @@
-From 6d0bb88072bbe21a2006d331cf3867a6749b37a6 Mon Sep 17 00:00:00 2001
+From 5c6b96c498821c71cf5007610b84036f5376fa0e Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 05:18:25 +0200
 Subject: [PATCH] Threaded Worlds
@@ -80,7 +80,7 @@ index 782e6be..36c046e 100644
 +    }
  }
 diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
-index 59ed04a..1b5c68d 100644
+index 2f0713f..41b3bfd 100644
 --- a/src/main/java/de/minetick/MinetickModConfig.java
 +++ b/src/main/java/de/minetick/MinetickModConfig.java
 @@ -40,6 +40,7 @@ public class MinetickModConfig {
@@ -91,15 +91,15 @@ index 59ed04a..1b5c68d 100644
  
      public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
          this.configFile = configFile;
-@@ -67,6 +68,7 @@ public class MinetickModConfig {
-         this.loadNotGeneratingWorlds(this.getNotGeneratingWorlds());
+@@ -68,6 +69,7 @@ public class MinetickModConfig {
          this.loadEntitiesWithOffloadedPathSearches(this.getEntitiesWithOffloadedPathSearches());
          MinetickNavigation.setMinimumDistanceForOffloading(this.getMinimumTargetDistanceForOffloading());
+         PathSearchThrottlerThread.adjustPoolSize(this.getPathSearchPoolSize());
 +        this.threadedWorlds = this.getThreadedWorldsEnabled();
      }
  
      private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
-@@ -160,4 +162,12 @@ public class MinetickModConfig {
+@@ -161,4 +163,12 @@ public class MinetickModConfig {
      public boolean isBungeeCordSupportEnabled() {
          return configuration.getBoolean("minetickmod.bungeeCordSupport");
      }
@@ -843,10 +843,10 @@ index 4e3e879..e1faa27 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index ff6bf0e..892bf70 100644
+index 5931545..3facdd9 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
-@@ -27,3 +27,4 @@ minetickmod:
+@@ -28,3 +28,4 @@ minetickmod:
      - WITCH
      - ZOMBIE
      bungeeCordSupport: false

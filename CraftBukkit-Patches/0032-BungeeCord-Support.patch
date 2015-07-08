@@ -1,14 +1,14 @@
-From 3b457462a3a8df8dccd0a12de18ede1f9d2d205e Mon Sep 17 00:00:00 2001
+From e748e5fe0fab34ee3a33b3603242d3ea17e3abe7 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 04:26:23 +0200
 Subject: [PATCH] BungeeCord Support
 
 
 diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
-index 6046614..59ed04a 100644
+index 22a057c..2f0713f 100644
 --- a/src/main/java/de/minetick/MinetickModConfig.java
 +++ b/src/main/java/de/minetick/MinetickModConfig.java
-@@ -156,4 +156,8 @@ public class MinetickModConfig {
+@@ -157,4 +157,8 @@ public class MinetickModConfig {
          int threadcount = configuration.getInt("minetickmod.pathSearchThreadPoolSize", 2);
          return Math.max(1, Math.min(threadcount, 32));
      }
@@ -175,10 +175,10 @@ index e229dc0..17b9809 100644
      public double getEyeHeight() {
          return getEyeHeight(false);
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index 03f2445..ff6bf0e 100644
+index f8b808c..5931545 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
-@@ -26,3 +26,4 @@ minetickmod:
+@@ -27,3 +27,4 @@ minetickmod:
      - SQUID
      - WITCH
      - ZOMBIE
