@@ -1,14 +1,14 @@
-From d5ad1dfee862f68078e0b2a96a61d71c54c41f65 Mon Sep 17 00:00:00 2001
+From c2698f470204e0d5b556ee8517dca76271ee26e6 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 25 May 2015 20:35:01 +0200
 Subject: [PATCH] BungeeCord Support
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index fbb5186..2fa4032 100644
+index c993a3f..43b4b4a 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -52,6 +52,7 @@ public class MinetickMod {
+@@ -51,6 +51,7 @@ public class MinetickMod {
      private PathSearchThrottlerThread pathSearchThrottler;
      private HashSet<EntityType> entitiesWithOffloadedPathSearches;
      private int minimumPathSearchOffloadDistance = 8;
@@ -16,7 +16,7 @@ index fbb5186..2fa4032 100644
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -100,6 +101,8 @@ public class MinetickMod {
+@@ -93,6 +94,8 @@ public class MinetickMod {
                  }
              }
              this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
@@ -25,10 +25,11 @@ index fbb5186..2fa4032 100644
          }
      }
  
-@@ -239,4 +242,7 @@ public class MinetickMod {
+@@ -224,4 +227,8 @@ public class MinetickMod {
+     public static boolean queuePathSearch(PathSearchJob pathSearchJob) {
          return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
      }
- 
++
 +    public static boolean isBungeeCordSupportEnabled() {
 +        return instance.bungeeCordSupport;
 +    }
@@ -155,7 +156,7 @@ index f24cee6..203ce3c 100644
  
          if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 99d474d..c7ebe1c 100644
+index b35a935..de627ef 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -559,7 +559,13 @@ public final class CraftServer implements Server {
@@ -173,7 +174,7 @@ index 99d474d..c7ebe1c 100644
      }
  
      @Override
-@@ -1655,5 +1661,9 @@ public final class CraftServer implements Server {
+@@ -1651,5 +1657,9 @@ public final class CraftServer implements Server {
      public int getMinetickModMinimumTargetDistanceForOffloading(int defaultDistance) {
          return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", defaultDistance);
      }
@@ -201,7 +202,7 @@ index e229dc0..17b9809 100644
      public double getEyeHeight() {
          return getEyeHeight(false);
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 4cd0fa7..c93a416 100644
+index 6114b29..1fe7b71 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
 @@ -45,6 +45,7 @@ database:
@@ -209,9 +210,9 @@ index 4cd0fa7..c93a416 100644
      url: jdbc:sqlite:{DIR}{NAME}.db
  minetickmod:
 +    bungeeCordSupport: false
-     notGeneratingWorlds: []
      minimumTargetDistanceForOffloadedPathSearches: 0
      entitiesWithOffloadedPathSearches:
+     - BAT
 -- 
 1.8.3.msysgit.0
 

@@ -1,6 +1,6 @@
-From 46eb707b72c511c690f4aea62a935485d48f03c7 Mon Sep 17 00:00:00 2001
+From e0450e66f66356f8004261b9fe01902db9ffdb78 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Sun, 22 Mar 2015 12:26:03 +0100
+Date: Tue, 7 Jul 2015 08:30:40 +0200
 Subject: [PATCH] Allow Disabling of Chunk Generation
 
 
@@ -115,55 +115,45 @@ index 0000000..ee06944
 +
 +    public void loadNearby(IChunkProvider ichunkprovider, IChunkProvider ichunkprovider1, int i, int j) {}
 +}
-diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 5572950..4a6a555 100644
---- a/src/main/java/de/minetick/MinetickMod.java
-+++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
- import java.io.IOException;
- import java.io.OutputStream;
- import java.util.Collections;
-+import java.util.HashSet;
- import java.util.LinkedList;
- import java.util.List;
- import java.util.concurrent.Callable;
-@@ -44,12 +45,14 @@ public class MinetickMod {
-     private List<Integer> ticksPerSecond;
-     private int ticksCounter = 0;
-     private final Logger log = LogManager.getLogger();
-+    private HashSet<String> notGeneratingWorlds;
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+index c14a63b..a4d121d 100644
+--- a/src/main/java/de/minetick/MinetickModConfig.java
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -41,6 +41,7 @@ public class MinetickModConfig {
+     private final Logger logger = LogManager.getLogger();
+     private File configFile;
+     private FileConfiguration configuration;
++    private HashSet<String> notGeneratingWorlds = new HashSet<String>();
  
-     public MinetickMod() {
-         this.tickTimerObject = new TickTimer();
-         this.tickCounterObject = new TickCounter();
-         this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
-         this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
-+        this.notGeneratingWorlds = new HashSet<String>();
-         instance = this;
-         try {
-             this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
-@@ -73,6 +76,11 @@ public class MinetickMod {
-             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
-             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
-             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
-+
-+            List<String> worlds = craftserver.getMinetickModNotGeneratingWorlds();
-+            for(String w: worlds) {
-+                this.notGeneratingWorlds.add(w.toLowerCase());
-+            }
-         }
+     public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
+         this.configFile = configFile;
+@@ -65,7 +66,7 @@ public class MinetickModConfig {
      }
  
-@@ -191,4 +199,11 @@ public class MinetickMod {
-             return null;
-         }
+     private void loadConfigContent() {
+-
++        this.loadNotGeneratingWorlds(this.getNotGeneratingWorlds());
+     }
+ 
+     private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
+@@ -111,4 +112,19 @@ public class MinetickModConfig {
+     public int getProfilerLogInterval() {
+         return configuration.getInt("minetickmod.profiler-log-interval", 10);
      }
 +
-+    public static boolean doesWorldNotGenerateChunks(String worldName) {
-+        if(instance != null) {
-+            return instance.notGeneratingWorlds.contains(worldName.toLowerCase());
++    public List<String> getNotGeneratingWorlds() {
++        return configuration.getStringList("minetickmod.notGeneratingWorlds");
++    }
++
++    private void loadNotGeneratingWorlds(List<String> worlds) {
++        this.notGeneratingWorlds.clear();
++        for(String w: worlds) {
++            this.notGeneratingWorlds.add(w.toLowerCase());
 +        }
-+        return false;
++    }
++
++    public boolean doesWorldNotGenerateChunks(String worldName) {
++        return this.notGeneratingWorlds.contains(worldName.toLowerCase());
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
@@ -182,7 +172,7 @@ index 3923cd1..90cdac4 100644
      private boolean q;
      private boolean r;
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 22c3906..ebbd517 100644
+index 22c3906..151e338 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -1,6 +1,7 @@
@@ -224,7 +214,7 @@ index 22c3906..ebbd517 100644
                  if (this.chunkProvider == null) {
                      chunk = this.emptyChunk;
 +                // MinetickMod start
-+                } else if (MinetickMod.doesWorldNotGenerateChunks(this.world.getWorld().getName())) {
++                } else if (MinetickMod.getConfig().doesWorldNotGenerateChunks(this.world.getWorld().getName())) {
 +                    return this.mtEmptyChunk;
 +                // MinetickMod end
                  } else {
@@ -257,30 +247,14 @@ index 22c3906..ebbd517 100644
              try {
                  chunk.setLastSaved(this.world.getTime());
                  this.chunkLoader.a(this.world, chunk);
-diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 629e6b8..1e06d63 100644
---- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1642,4 +1642,10 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public List<String> getMinetickModNotGeneratingWorlds() {
-+        return configuration.getStringList("minetickmod.notGeneratingWorlds");
-+    }
-+    // MinetickMod end
- }
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..a8499d0 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,5 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
-+minetickmod:
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+index ebf121b..3393dda 100644
+--- a/src/main/resources/configurations/minetickmod.yml
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -2,3 +2,4 @@ minetickmod:
+     profiler-log-interval: 30
+     profiler-write-log: false
+     profiler-write-interval: 10
 +    notGeneratingWorlds: []
 -- 
 1.8.3.msysgit.0

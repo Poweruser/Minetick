@@ -1,4 +1,4 @@
-From 30a9140895abf14e8edb67078e2426708cfd9dd4 Mon Sep 17 00:00:00 2001
+From 958bc360f3db7273252dab77bc694878e383c680 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 30 Mar 2015 01:31:34 +0200
 Subject: [PATCH] AntiXRay
@@ -280,7 +280,7 @@ index 0000000..2b3a32d
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index c0370ee..584de3f 100644
+index 03b4f54..50ada5b 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -47,7 +47,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
@@ -293,7 +293,7 @@ index c0370ee..584de3f 100644
  import de.minetick.modcommands.ReloadSettingsCommand;
  import de.minetick.modcommands.TPSCommand;
  import de.minetick.modcommands.WorldStatsCommand;
-@@ -115,8 +117,11 @@ public class MinetickMod {
+@@ -113,8 +115,11 @@ public class MinetickMod {
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
              craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
              craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
@@ -302,9 +302,9 @@ index c0370ee..584de3f 100644
  
 +            AntiXRay.setWorldsFromConfig(craftserver.getMinetickModOrebfuscatedWorlds());
 +
-             List<String> worlds = craftserver.getMinetickModNotGeneratingWorlds();
-             for(String w: worlds) {
-                 this.notGeneratingWorlds.add(w.toLowerCase());
+             List<String> entitiesWithOffloadedPathSearches = craftserver.getMinetickModEntitiesWithOffloadedPathSearches();
+             for(String name: entitiesWithOffloadedPathSearches) {
+                 try {
 diff --git a/src/main/java/de/minetick/modcommands/AntiXRayCommand.java b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
 new file mode 100644
 index 0000000..6c36852
@@ -540,10 +540,10 @@ index 878c728..76bcb0a 100644
  
      public World b() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 2c59a5f..1cdc758 100644
+index 5af5e93..f670bf7 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1715,5 +1715,9 @@ public final class CraftServer implements Server {
+@@ -1711,5 +1711,9 @@ public final class CraftServer implements Server {
          threadcount = Math.max(1, threadcount);
          return Math.min(32, threadcount);
      }
@@ -554,10 +554,10 @@ index 2c59a5f..1cdc758 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 1012b53..5364386 100644
+index 9dfa5b8..fd079c5 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -82,3 +82,4 @@ minetickmod:
+@@ -81,3 +81,4 @@ minetickmod:
          FLAT: 2.0
          LARGEBIOMES: 1.0
          AMPLIFIED: 0.5
