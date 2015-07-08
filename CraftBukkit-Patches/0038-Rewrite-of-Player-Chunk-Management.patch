@@ -1,6 +1,6 @@
-From 3ca19ab88be4908067b72c54909ec9f4dbe1a1f5 Mon Sep 17 00:00:00 2001
+From 1136377134fab2722626fdb88b5c010acbb5f392 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Tue, 26 May 2015 00:47:37 +0200
+Date: Wed, 8 Jul 2015 06:05:49 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
 
 
@@ -212,36 +212,10 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 36c046e..fc18fe7 100644
+index 36c046e..aed1cca 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -8,6 +8,8 @@ import java.util.Collections;
- import java.util.HashSet;
- import java.util.LinkedList;
- import java.util.List;
-+import java.util.Set;
-+import java.util.UUID;
- import java.util.concurrent.Callable;
- import java.util.concurrent.ExecutorService;
- import java.util.concurrent.Executors;
-@@ -32,17 +34,24 @@ import net.minecraft.server.EntityWither;
- import net.minecraft.server.MinecraftServer;
- import net.minecraft.server.NBTCompressedStreamTools;
- import net.minecraft.server.NBTTagCompound;
-+import net.minecraft.server.PacketPlayOutMapChunkBulk;
-+import net.minecraft.server.PlayerChunkMap;
- import net.minecraft.server.WorldServer;
- 
- import org.apache.logging.log4j.LogManager;
- import org.apache.logging.log4j.Logger;
-+import org.bukkit.configuration.ConfigurationSection;
- import org.bukkit.configuration.InvalidConfigurationException;
-+import org.bukkit.configuration.file.FileConfiguration;
-+import org.bukkit.configuration.file.YamlConfiguration;
- import org.bukkit.craftbukkit.CraftServer;
- import org.bukkit.entity.EntityType;
- 
-+import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
+@@ -43,6 +43,7 @@ import org.bukkit.entity.EntityType;
  import de.minetick.modcommands.ReloadSettingsCommand;
  import de.minetick.modcommands.TPSCommand;
  import de.minetick.modcommands.WorldStatsCommand;
@@ -249,45 +223,24 @@ index 36c046e..fc18fe7 100644
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -65,12 +74,16 @@ public class MinetickMod {
+@@ -65,6 +66,7 @@ public class MinetickMod {
      private int ticksCounter = 0;
      private final Logger log = LogManager.getLogger();
      private PathSearchThrottlerThread pathSearchThrottler;
-+    private File configFile;
-+    private FileConfiguration modConfig;
 +    private PacketBuilderThreadPool packetBuilderPool;
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-         this.tickCounterObject = new TickCounter();
-         this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
-         this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
-+        this.configFile = new File("viewdistance.yml");
-         instance = this;
-         try {
-             this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
-@@ -96,6 +109,20 @@ public class MinetickMod {
+@@ -96,6 +98,8 @@ public class MinetickMod {
              craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
              craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
              this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
 +
-+            craftserver.getMinetickModPacketChunkRates(ChunkPriority.values());
-+
-+            try {
-+                if(!this.configFile.exists()) {
-+                    this.configFile.createNewFile();
-+                }
-+                this.modConfig = YamlConfiguration.loadConfiguration(this.configFile);
-+            } catch (IOException e) {
-+                log.error(e.toString());
-+                e.printStackTrace();
-+            }
-+
-+            this.packetBuilderPool = new PacketBuilderThreadPool(craftserver.getMinetickModPacketBuilderPoolSize());
++            this.packetBuilderPool = new PacketBuilderThreadPool(this.mainConfig.getPacketBuilderPoolSize());
          }
      }
  
-@@ -114,6 +141,9 @@ public class MinetickMod {
+@@ -114,6 +118,9 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
@@ -297,51 +250,146 @@ index 36c046e..fc18fe7 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -122,6 +152,14 @@ public class MinetickMod {
+@@ -122,6 +129,9 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
-+        try {
-+            if(this.modConfig != null) {
-+                this.modConfig.save(this.configFile);
-+            }
-+        } catch (IOException e){
-+            log.error("Exception while saving view distance settings");
-+            e.printStackTrace();
++        if(getConfig() != null) {
++            getConfig().saveViewDistances();
 +        }
      }
  
      public void checkTickTime(long tickTime) {
-@@ -232,4 +270,26 @@ public class MinetickMod {
-                 entity instanceof EntityFireworks || entity instanceof EntityComplexPart ||
-                 entity instanceof EntityWeather);
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+index 1b5c68d..8ed2372 100644
+--- a/src/main/java/de/minetick/MinetickModConfig.java
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -30,6 +30,8 @@ import org.bukkit.entity.EntityType;
+ 
+ import com.google.common.base.Charsets;
+ 
++import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
++import de.minetick.packetbuilder.PacketBuilderThreadPool;
+ import de.minetick.pathsearch.MinetickNavigation;
+ import de.minetick.pathsearch.PathSearchThrottlerThread;
+ 
+@@ -41,6 +43,8 @@ public class MinetickModConfig {
+     private HashSet<String> notGeneratingWorlds = new HashSet<String>();
+     private HashSet<EntityType> entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
+     private boolean threadedWorlds;
++    private File viewdistanceConfigFile;
++    private FileConfiguration viewdistanceConfig;
+ 
+     public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
+         this.configFile = configFile;
+@@ -53,6 +57,17 @@ public class MinetickModConfig {
+         }
+ 
+         this.loadConfigContent();
++
++        this.viewdistanceConfigFile = new File("viewdistance.yml");
++        try {
++            if(!this.viewdistanceConfigFile.exists()) {
++                this.viewdistanceConfigFile.createNewFile();
++            }
++            this.viewdistanceConfig = YamlConfiguration.loadConfiguration(this.viewdistanceConfigFile);
++        } catch (IOException e) {
++            logger.error("[MinetickMod] Could not load the stored player view distances from viewdistance.yml: " + e.toString());
++            e.printStackTrace();
++        }
+     }
+ 
+     public FileConfiguration[] reload() throws IOException, InvalidConfigurationException {
+@@ -69,6 +84,9 @@ public class MinetickModConfig {
+         this.loadEntitiesWithOffloadedPathSearches(this.getEntitiesWithOffloadedPathSearches());
+         MinetickNavigation.setMinimumDistanceForOffloading(this.getMinimumTargetDistanceForOffloading());
+         this.threadedWorlds = this.getThreadedWorldsEnabled();
++        this.applyPacketChunkRates(ChunkPriority.values());
++        ChunkGenerationPolicy.setRatesFromConfig(this.getMaxChunkGenerationRates());
++        PacketBuilderThreadPool.adjustPoolSize(this.getPacketBuilderPoolSize());
+     }
+ 
+     private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
+@@ -170,4 +188,76 @@ public class MinetickModConfig {
+     public boolean isThreadedWorldsEnabled() {
+         return this.threadedWorlds;
      }
 +
-+    public static int minimumViewDistance() {
++    public int getMinimumViewDistance() {
 +        return 3;
 +    }
 +
-+    public static boolean setPlayerViewDistance(UUID playerId, int viewDistance) {
-+        if(instance.modConfig != null) {
-+            instance.modConfig.set(playerId.toString(), Math.max(viewDistance, minimumViewDistance()));
++    public boolean setPlayerViewDistance(UUID playerId, int viewDistance) {
++        if(this.viewdistanceConfig != null) {
++            this.viewdistanceConfig.set(playerId.toString(), Math.max(viewDistance, this.getMinimumViewDistance()));
 +            return true;
 +        }
 +        return false;
 +    }
 +
-+    public static int getPlayerViewDistance(UUID playerId, PlayerChunkMap map) {
++    public int getPlayerViewDistance(UUID playerId, PlayerChunkMap map) {
 +        int defaultVD = map.getViewDistance();
-+        if(instance.modConfig != null) {
-+            int playerVD = instance.modConfig.getInt(playerId.toString(), defaultVD);
-+            playerVD = Math.max(playerVD, minimumViewDistance());
++        if(this.viewdistanceConfig != null) {
++            int playerVD = this.viewdistanceConfig.getInt(playerId.toString(), defaultVD);
++            playerVD = Math.max(playerVD, this.getMinimumViewDistance());
 +            return Math.min(playerVD, defaultVD);
 +        }
 +        return defaultVD;
 +    }
++
++    protected void saveViewDistances() {
++        try {
++            if(this.viewdistanceConfig != null) {
++                this.viewdistanceConfig.save(this.viewdistanceConfigFile);
++            }
++        } catch (IOException e){
++            logger.error("Exception while saving view distance settings");
++            e.printStackTrace();
++        }
++    }
++
++    public void applyPacketChunkRates(ChunkPriority[] values) {
++        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.packetChunkRates");
++        Set<String> subkeys = section.getKeys(false);
++        for(String key: subkeys) {
++            int chunkCount = section.getInt(key);
++            if(chunkCount >= 1 && chunkCount <= 5) {
++                ChunkPriority priority = ChunkPriority.findEntry(key);
++                if(priority != null) {
++                    priority.setChunksPerPacket(chunkCount);
++                } else {
++                    this.logger.warn("[MinetickMod] The config entry minetickmod.packetChunkRates." + key + " is invalid. Removing it from the config.");
++                    section.set(key, null);
++                }
++            }
++        }
++    }
++
++    public Map<org.bukkit.WorldType, Double> getMaxChunkGenerationRates() {
++        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.maxChunkGenerationRates");
++        Set<String> subkeys = section.getKeys(false);
++        Map<org.bukkit.WorldType, Double> rateMap = new HashMap<org.bukkit.WorldType, Double>();
++        for(String key: subkeys) {
++            org.bukkit.WorldType type = org.bukkit.WorldType.getByName(key);
++            if(type != null) {
++                double rate = section.getDouble(key, ChunkGenerationPolicy.getDefaultRate(type));
++                if(rate < 0.25D) { rate = 0.25D; }
++                rateMap.put(type, rate);
++            } else {
++                this.logger.warn("[MinetickMod] The WorldType '" + key + "' was not recognized in the setting minetickmod.maxChunkGenerationRates");
++            }
++        }
++        return rateMap;
++    }
++
++    public int getPacketBuilderPoolSize() {
++        int threadcount = configuration.getInt("minetickmod.packetBuilderThreadPoolSize", 1);
++        return Math.max(1, Math.min(threadcount, 32));
++    }
  }
 diff --git a/src/main/java/de/minetick/PlayerChunkBuffer.java b/src/main/java/de/minetick/PlayerChunkBuffer.java
 new file mode 100644
-index 0000000..cbfd6a7
+index 0000000..7f905d9
 --- /dev/null
 +++ b/src/main/java/de/minetick/PlayerChunkBuffer.java
 @@ -0,0 +1,177 @@
@@ -387,7 +435,7 @@ index 0000000..cbfd6a7
 +        this.playerRegionCenter = new int[] { MathHelper.floor(ent.locX) >> 4, MathHelper.floor(ent.locZ) >> 4 };
 +        this.lastMovement = new int[] { 0, 0 };
 +        this.movement = new ArrayDeque<PlayerMovement>();
-+        int savedVD = MinetickMod.getPlayerViewDistance(ent.getUniqueID(), this.playerChunkManager.getPlayerChunkMap());
++        int savedVD = MinetickMod.getConfig().getPlayerViewDistance(ent.getUniqueID(), this.playerChunkManager.getPlayerChunkMap());
 +        this.oldViewDistance = savedVD;
 +        ent.setViewDistance(savedVD);
 +    }
@@ -1552,7 +1600,7 @@ index 2e0ce6c..b5d500e 100644
  
              this.chunks.put(LongHash.toLong(i, j), chunk);
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 158d733..45e5b73 100644
+index 158d733..1ac8a16 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -24,6 +24,12 @@ import org.bukkit.event.inventory.InventoryType;
@@ -1576,9 +1624,9 @@ index 158d733..45e5b73 100644
 +    private int clientViewDistance;
 +
 +    public void setViewDistance(int distance) {
-+        this.clientViewDistance = Math.max(distance, MinetickMod.minimumViewDistance());
++        this.clientViewDistance = Math.max(distance, MinetickMod.getConfig().getMinimumViewDistance());
 +        this.clientViewDistance = Math.min(this.clientViewDistance, ((WorldServer)this.world).getPlayerChunkMap().getViewDistance());
-+        MinetickMod.setPlayerViewDistance(this.getUniqueID(), this.clientViewDistance);
++        MinetickMod.getConfig().setPlayerViewDistance(this.getUniqueID(), this.clientViewDistance);
 +    }
 +
 +    public int getViewDistance() {
@@ -1604,7 +1652,7 @@ index 158d733..45e5b73 100644
          this.maxHealthCache = this.getMaxHealth();
          // CraftBukkit end
 +
-+        this.clientViewDistance = MinetickMod.getPlayerViewDistance(this.getUniqueID(), worldserver.getPlayerChunkMap()); // MinetickMod
++        this.clientViewDistance = MinetickMod.getConfig().getPlayerViewDistance(this.getUniqueID(), worldserver.getPlayerChunkMap()); // MinetickMod
      }
  
      public void a(NBTTagCompound nbttagcompound) {
@@ -1838,22 +1886,10 @@ index 63b90f7..8c55566 100644
  
      public void a(PacketListenerPlayOut packetlistenerplayout) {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-index 688d6f0..65aa181 100644
+index 688d6f0..caba4e7 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-@@ -1,9 +1,11 @@
- package net.minecraft.server;
- 
- import com.google.common.collect.Lists;
-+
- import java.util.ArrayList;
- import java.util.Iterator;
- import java.util.List;
-+
- import org.apache.logging.log4j.LogManager;
- import org.apache.logging.log4j.Logger;
- 
-@@ -15,6 +17,16 @@ import org.bukkit.craftbukkit.chunkio.ChunkIOExecutor;
+@@ -15,6 +15,16 @@ import org.bukkit.craftbukkit.chunkio.ChunkIOExecutor;
  import java.util.HashMap;
  // CraftBukkit end
  
@@ -1870,7 +1906,7 @@ index 688d6f0..65aa181 100644
  public class PlayerChunkMap {
  
      private static final Logger a = LogManager.getLogger();
-@@ -28,9 +40,30 @@ public class PlayerChunkMap {
+@@ -28,9 +38,30 @@ public class PlayerChunkMap {
      private final int[][] i = new int[][] { { 1, 0}, { 0, 1}, { -1, 0}, { 0, -1}};
      private boolean wasNotEmpty; // CraftBukkit - add field
  
@@ -1901,7 +1937,7 @@ index 688d6f0..65aa181 100644
      }
  
      public WorldServer a() {
-@@ -85,7 +118,7 @@ public class PlayerChunkMap {
+@@ -85,7 +116,7 @@ public class PlayerChunkMap {
          return this.d.getEntry(k) != null;
      }
  
@@ -1910,7 +1946,7 @@ index 688d6f0..65aa181 100644
          long k = (long) i + 2147483647L | (long) j + 2147483647L << 32;
          PlayerChunkMap.PlayerChunk playerchunkmap_playerchunk = (PlayerChunkMap.PlayerChunk) this.d.getEntry(k);
  
-@@ -120,6 +153,7 @@ public class PlayerChunkMap {
+@@ -120,6 +151,7 @@ public class PlayerChunkMap {
      }
  
      public void addPlayer(EntityPlayer entityplayer) {
@@ -1918,7 +1954,7 @@ index 688d6f0..65aa181 100644
          int i = (int) entityplayer.locX >> 4;
          int j = (int) entityplayer.locZ >> 4;
  
-@@ -143,8 +177,49 @@ public class PlayerChunkMap {
+@@ -143,8 +175,49 @@ public class PlayerChunkMap {
  
          this.managedPlayers.add(entityplayer);
          this.b(entityplayer);
@@ -1968,7 +2004,7 @@ index 688d6f0..65aa181 100644
      public void b(EntityPlayer entityplayer) {
          ArrayList arraylist = Lists.newArrayList(entityplayer.chunkCoordIntPairQueue);
          int i = 0;
-@@ -189,8 +264,10 @@ public class PlayerChunkMap {
+@@ -189,8 +262,10 @@ public class PlayerChunkMap {
          }
  
      }
@@ -1979,7 +2015,7 @@ index 688d6f0..65aa181 100644
          int i = (int) entityplayer.d >> 4;
          int j = (int) entityplayer.e >> 4;
  
-@@ -203,6 +280,23 @@ public class PlayerChunkMap {
+@@ -203,6 +278,23 @@ public class PlayerChunkMap {
                  }
              }
          }
@@ -2003,7 +2039,7 @@ index 688d6f0..65aa181 100644
  
          this.managedPlayers.remove(entityplayer);
      }
-@@ -215,6 +309,7 @@ public class PlayerChunkMap {
+@@ -215,6 +307,7 @@ public class PlayerChunkMap {
      }
  
      public void movePlayer(EntityPlayer entityplayer) {
@@ -2011,7 +2047,7 @@ index 688d6f0..65aa181 100644
          int i = (int) entityplayer.locX >> 4;
          int j = (int) entityplayer.locZ >> 4;
          double d0 = entityplayer.d - entityplayer.locX;
-@@ -262,12 +357,45 @@ public class PlayerChunkMap {
+@@ -262,12 +355,45 @@ public class PlayerChunkMap {
                  // CraftBukkit end
              }
          }
@@ -2058,7 +2094,7 @@ index 688d6f0..65aa181 100644
      }
  
      public void a(int i) {
-@@ -279,8 +407,9 @@ public class PlayerChunkMap {
+@@ -279,8 +405,9 @@ public class PlayerChunkMap {
  
              while (iterator.hasNext()) {
                  EntityPlayer entityplayer = (EntityPlayer) iterator.next();
@@ -2070,7 +2106,7 @@ index 688d6f0..65aa181 100644
                  int i1;
                  int j1;
  
-@@ -313,7 +442,7 @@ public class PlayerChunkMap {
+@@ -313,7 +440,7 @@ public class PlayerChunkMap {
          return i * 16 - 16;
      }
  
@@ -2079,7 +2115,7 @@ index 688d6f0..65aa181 100644
  
          private final List<EntityPlayer> b = Lists.newArrayList();
          private final ChunkCoordIntPair location;
-@@ -332,9 +461,27 @@ public class PlayerChunkMap {
+@@ -332,9 +459,27 @@ public class PlayerChunkMap {
          };
          // CraftBukkit end
  
@@ -2108,7 +2144,7 @@ index 688d6f0..65aa181 100644
          }
  
          public void a(final EntityPlayer entityplayer) {  // CraftBukkit - added final to argument
-@@ -350,11 +497,11 @@ public class PlayerChunkMap {
+@@ -350,11 +495,11 @@ public class PlayerChunkMap {
                  Runnable playerRunnable;
                  if (this.loaded) {
                      playerRunnable = null;
@@ -2122,7 +2158,7 @@ index 688d6f0..65aa181 100644
                          }
                      };
                      PlayerChunkMap.this.a().chunkProviderServer.getChunkAt(this.location.x, this.location.z, playerRunnable);
-@@ -386,12 +533,12 @@ public class PlayerChunkMap {
+@@ -386,12 +531,12 @@ public class PlayerChunkMap {
                  Chunk chunk = PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z);
  
                  if (chunk.isReady()) {
@@ -2137,7 +2173,7 @@ index 688d6f0..65aa181 100644
                  if (this.b.isEmpty()) {
                      long i = (long) this.location.x + 2147483647L | (long) this.location.z + 2147483647L << 32;
  
-@@ -441,9 +588,19 @@ public class PlayerChunkMap {
+@@ -441,9 +586,19 @@ public class PlayerChunkMap {
              for (int i = 0; i < this.b.size(); ++i) {
                  EntityPlayer entityplayer = (EntityPlayer) this.b.get(i);
  
@@ -2157,7 +2193,7 @@ index 688d6f0..65aa181 100644
              }
  
          }
-@@ -470,6 +627,7 @@ public class PlayerChunkMap {
+@@ -470,6 +625,7 @@ public class PlayerChunkMap {
                      if (this.dirtyCount == 64) {
                          i = this.location.x * 16;
                          j = this.location.z * 16;
@@ -2165,7 +2201,7 @@ index 688d6f0..65aa181 100644
                          this.a((Packet) (new PacketPlayOutMapChunk(PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z), false, this.f)));
  
                          for (k = 0; k < 16; ++k) {
-@@ -482,6 +640,22 @@ public class PlayerChunkMap {
+@@ -482,6 +638,22 @@ public class PlayerChunkMap {
                                  }
                              }
                          }
@@ -2188,7 +2224,7 @@ index 688d6f0..65aa181 100644
                      } else {
                          this.a((Packet) (new PacketPlayOutMultiBlockChange(this.dirtyCount, this.dirtyBlocks, PlayerChunkMap.this.world.getChunkAt(this.location.x, this.location.z))));
  
-@@ -515,6 +689,7 @@ public class PlayerChunkMap {
+@@ -515,6 +687,7 @@ public class PlayerChunkMap {
          }
      }
  
@@ -2196,7 +2232,7 @@ index 688d6f0..65aa181 100644
      // CraftBukkit start - Sorter to load nearby chunks first
      private static class ChunkCoordComparator implements java.util.Comparator<ChunkCoordIntPair> {
          private int x;
-@@ -557,4 +732,5 @@ public class PlayerChunkMap {
+@@ -557,4 +730,5 @@ public class PlayerChunkMap {
          }
      }
      // CraftBukkit end
@@ -2256,7 +2292,7 @@ index e1faa27..878c728 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index feee9d4..83574c4 100644
+index feee9d4..6e2e943 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
@@ -2272,62 +2308,14 @@ index feee9d4..83574c4 100644
  public final class CraftServer implements Server {
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
-@@ -1648,4 +1654,46 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public Map<org.bukkit.WorldType, Double> getMinetickModMaxChunkGenerationRates() {
-+        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.maxChunkGenerationRates");
-+        Set<String> subkeys = section.getKeys(false);
-+        Map<org.bukkit.WorldType, Double> rateMap = new HashMap<org.bukkit.WorldType, Double>();
-+        for(String key: subkeys) {
-+            org.bukkit.WorldType type = org.bukkit.WorldType.getByName(key);
-+            if(type != null) {
-+                double rate = section.getDouble(key, ChunkGenerationPolicy.getDefaultRate(type));
-+                if(rate < 0.25D) { rate = 0.25D; }
-+                rateMap.put(type, rate);
-+            } else {
-+                logger.warning("[MinetickMod] The WorldType '" + key + "' was not recognized in the setting minetickmod.maxChunkGenerationRates");
-+            }
-+        }
-+        return rateMap;
-+    }
-+
-+    public void getMinetickModPacketChunkRates(ChunkPriority[] values) {
-+        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.packetChunkRates");
-+        Set<String> subkeys = section.getKeys(false);
-+        for(String key: subkeys) {
-+            int chunkCount = section.getInt(key);
-+            if(chunkCount >= 1 && chunkCount <= 5) {
-+                ChunkPriority priority = ChunkPriority.findEntry(key);
-+                if(priority != null) {
-+                    priority.setChunksPerPacket(chunkCount);
-+                } else {
-+                    logger.warning("[MinetickMod] The config entry minetickmod.packetChunkRates." + key + " is invalid. Removing it from the config.");
-+                    section.set(key, null);
-+                }
-+            }
-+        }
-+    }
-+
-+    public int getMinetickModPacketBuilderPoolSize() {
-+        int threadcount = configuration.getInt("minetickmod.packetBuilderThreadPoolSize");
-+        threadcount = Math.max(1, threadcount);
-+        return Math.min(32, threadcount);
-+    }
-+    // MinetickMod end
- }
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..cbca932 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,15 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
-+minetickmod:
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+index 892bf70..5625fd9 100644
+--- a/src/main/resources/configurations/minetickmod.yml
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -28,3 +28,14 @@ minetickmod:
+     - ZOMBIE
+     bungeeCordSupport: false
+     enableWorldThreading: true
 +    packetBuilderThreadPoolSize: 4
 +    packetChunkRates:
 +        HIGHEST: 5

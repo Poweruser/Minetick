@@ -1,4 +1,4 @@
-From 82c3f08f77d14ca07615d908123a9a1163997fd5 Mon Sep 17 00:00:00 2001
+From 33b8c2cfd839ec4545ccfecee5168b3fd45fd55f Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Mon, 30 Mar 2015 01:31:34 +0200
 Subject: [PATCH] AntiXRay
@@ -280,31 +280,31 @@ index 0000000..2b3a32d
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index fc18fe7..503597d 100644
+index aed1cca..0fab75d 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
-@@ -47,7 +47,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
+@@ -40,6 +40,8 @@ import org.bukkit.configuration.InvalidConfigurationException;
  import org.bukkit.craftbukkit.CraftServer;
  import org.bukkit.entity.EntityType;
  
 +import de.minetick.AntiXRay;
- import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
 +import de.minetick.modcommands.AntiXRayCommand;
  import de.minetick.modcommands.ReloadSettingsCommand;
  import de.minetick.modcommands.TPSCommand;
  import de.minetick.modcommands.WorldStatsCommand;
-@@ -108,8 +110,11 @@ public class MinetickMod {
+@@ -97,9 +99,12 @@ public class MinetickMod {
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
              craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
              craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
 +            craftserver.getCommandMap().register("antixray", "MinetickMod", new AntiXRayCommand("antixray"));
              this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
  
-+            AntiXRay.setWorldsFromConfig(craftserver.getMinetickModOrebfuscatedWorlds());
+             this.packetBuilderPool = new PacketBuilderThreadPool(this.mainConfig.getPacketBuilderPoolSize());
 +
-             craftserver.getMinetickModPacketChunkRates(ChunkPriority.values());
++            AntiXRay.setWorldsFromConfig(craftserver.getMinetickModOrebfuscatedWorlds());
+         }
+     }
  
-             try {
 diff --git a/src/main/java/de/minetick/modcommands/AntiXRayCommand.java b/src/main/java/de/minetick/modcommands/AntiXRayCommand.java
 new file mode 100644
 index 0000000..6c36852
@@ -540,27 +540,29 @@ index 878c728..76bcb0a 100644
  
      public World b() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 83574c4..ead4394 100644
+index 6e2e943..b7451eb 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1695,5 +1695,9 @@ public final class CraftServer implements Server {
-         threadcount = Math.max(1, threadcount);
-         return Math.min(32, threadcount);
+@@ -1654,4 +1654,10 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
      }
 +
++    // MinetickMod start
 +    public List<String> getMinetickModOrebfuscatedWorlds() {
 +        return configuration.getStringList("minetickmod.orebfuscatedWorlds");
 +    }
-     // MinetickMod end
++    // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index cbca932..8163ad4 100644
+index a6c1178..633ece6 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -56,3 +56,4 @@ minetickmod:
-         FLAT: 2.0
-         LARGEBIOMES: 1.0
-         AMPLIFIED: 0.5
+@@ -44,3 +44,5 @@ database:
+     driver: org.sqlite.JDBC
+     password: walrus
+     url: jdbc:sqlite:{DIR}{NAME}.db
++minetickmod:
 +    orebfuscatedWorlds: []
 -- 
 1.8.3.msysgit.0
