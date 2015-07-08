@@ -1,11 +1,11 @@
-From b52a66e89135f8bf0c560a7ed31f5b76e2f9a2f4 Mon Sep 17 00:00:00 2001
+From 5dbbed368e31a75f6073767225c977c2a1a5c690 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 28 Apr 2015 05:50:57 +0200
 Subject: [PATCH] Threaded Worlds
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 43b4b4a..453b9cd 100644
+index 973b46d..e1e753f 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -11,14 +11,28 @@ import java.util.List;
@@ -53,24 +53,20 @@ index 43b4b4a..453b9cd 100644
      private ScheduledFuture<Object> tickTimerTask;
      private static MinetickMod instance;
      private Profiler profiler;
-@@ -52,6 +68,7 @@ public class MinetickMod {
-     private HashSet<EntityType> entitiesWithOffloadedPathSearches;
-     private int minimumPathSearchOffloadDistance = 8;
+@@ -50,6 +66,7 @@ public class MinetickMod {
+     private final Logger log = LogManager.getLogger();
+     private PathSearchThrottlerThread pathSearchThrottler;
      private boolean bungeeCordSupport;
 +    private boolean worldThreading;
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-@@ -82,6 +99,7 @@ public class MinetickMod {
+@@ -79,9 +96,12 @@ public class MinetickMod {
              CraftServer craftserver = MinecraftServer.getServer().server;
              craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
              craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
 +            craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
              this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
- 
-             List<String> entitiesWithOffloadedPathSearches = craftserver.getMinetickModEntitiesWithOffloadedPathSearches();
-@@ -96,6 +114,8 @@ public class MinetickMod {
-             this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
  
              this.bungeeCordSupport = craftserver.getMinetickModBungeeCordSupport();
 +
@@ -78,7 +74,7 @@ index 43b4b4a..453b9cd 100644
          }
      }
  
-@@ -231,4 +251,21 @@ public class MinetickMod {
+@@ -209,4 +229,21 @@ public class MinetickMod {
      public static boolean isBungeeCordSupportEnabled() {
          return instance.bungeeCordSupport;
      }
@@ -831,10 +827,10 @@ index 4e3e879..e1faa27 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index de627ef..a9ba694 100644
+index 897ea46..a2f326d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1661,5 +1661,9 @@ public final class CraftServer implements Server {
+@@ -1653,5 +1653,9 @@ public final class CraftServer implements Server {
      public boolean getMinetickModBungeeCordSupport() {
          return configuration.getBoolean("minetickmod.bungeeCordSupport");
      }
@@ -845,17 +841,14 @@ index de627ef..a9ba694 100644
      // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 1fe7b71..9eaa618 100644
+index fd9348c..98816c1 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -46,6 +46,7 @@ database:
+@@ -46,3 +46,4 @@ database:
      url: jdbc:sqlite:{DIR}{NAME}.db
  minetickmod:
      bungeeCordSupport: false
 +    enableWorldThreading: true
-     minimumTargetDistanceForOffloadedPathSearches: 0
-     entitiesWithOffloadedPathSearches:
-     - BAT
 -- 
 1.8.3.msysgit.0
 

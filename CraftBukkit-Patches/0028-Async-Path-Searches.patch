@@ -1,11 +1,11 @@
-From eccfff7d6331139478b85323dbd442d533364d21 Mon Sep 17 00:00:00 2001
+From 26ae20868fcb2f64dc2f3c05da56d783082e1024 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Mon, 25 May 2015 20:59:28 +0200
+Date: Wed, 8 Jul 2015 03:27:25 +0200
 Subject: [PATCH] Async Path Searches
 
 
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 5572950..c993a3f 100644
+index 5572950..782e6be 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -5,6 +5,7 @@ import java.io.FileOutputStream;
@@ -36,43 +36,23 @@ index 5572950..c993a3f 100644
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
  
-@@ -44,12 +48,17 @@ public class MinetickMod {
+@@ -44,6 +48,7 @@ public class MinetickMod {
      private List<Integer> ticksPerSecond;
      private int ticksCounter = 0;
      private final Logger log = LogManager.getLogger();
 +    private PathSearchThrottlerThread pathSearchThrottler;
-+    private HashSet<EntityType> entitiesWithOffloadedPathSearches;
-+    private int minimumPathSearchOffloadDistance = 8;
  
      public MinetickMod() {
          this.tickTimerObject = new TickTimer();
-         this.tickCounterObject = new TickCounter();
-         this.ticksPerSecond = Collections.synchronizedList(new LinkedList<Integer>());
-         this.timerService.scheduleAtFixedRate(this.tickCounterObject, 1, 1, TimeUnit.SECONDS);
-+        this.pathSearchThrottler = new PathSearchThrottlerThread();
-+        this.entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
+@@ -53,6 +58,7 @@ public class MinetickMod {
          instance = this;
          try {
              this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
-@@ -73,6 +82,17 @@ public class MinetickMod {
-             craftserver.getCommandMap().register("tps", "MinetickMod", new TPSCommand("tps"));
-             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
-             this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
-+
-+            List<String> entitiesWithOffloadedPathSearches = craftserver.getMinetickModEntitiesWithOffloadedPathSearches();
-+            for(String name: entitiesWithOffloadedPathSearches) {
-+                try {
-+                    EntityType type = EntityType.valueOf(name.toUpperCase());
-+                    this.entitiesWithOffloadedPathSearches.add(type);
-+                } catch (IllegalArgumentException e) {
-+                    log.warn("[MinetickMod] Settings: Skipping \"" + name + "\", as it is not a constant in org.bukkit.entity.EntityType!");
-+                }
-+            }
-+            this.minimumPathSearchOffloadDistance = craftserver.getMinetickModMinimumTargetDistanceForOffloading(this.minimumPathSearchOffloadDistance);
-         }
-     }
- 
-@@ -90,6 +110,7 @@ public class MinetickMod {
++            this.pathSearchThrottler = new PathSearchThrottlerThread(this.mainConfig.getPathSearchPoolSize());
+         } catch (IOException e) {
+             this.failedToLoadConfig = true;
+         } catch (InvalidConfigurationException e) {
+@@ -90,6 +96,7 @@ public class MinetickMod {
  
      public void shutdown() {
          this.timerService.shutdown();
@@ -80,29 +60,86 @@ index 5572950..c993a3f 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -191,4 +212,16 @@ public class MinetickMod {
+@@ -191,4 +198,8 @@ public class MinetickMod {
              return null;
          }
      }
-+
-+    public static boolean isPathSearchOffloadedFor(EntityInsentient entity) {
-+        return instance.entitiesWithOffloadedPathSearches.contains(entity.getBukkitEntity().getType());
-+    }
-+
-+    public static double getMinimumPathSearchOffloadDistance() {
-+        return instance.minimumPathSearchOffloadDistance;
-+    }
 +
 +    public static boolean queuePathSearch(PathSearchJob pathSearchJob) {
 +        return instance.pathSearchThrottler.queuePathSearch(pathSearchJob);
 +    }
  }
+diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
+index a4d121d..6046614 100644
+--- a/src/main/java/de/minetick/MinetickModConfig.java
++++ b/src/main/java/de/minetick/MinetickModConfig.java
+@@ -30,9 +30,6 @@ import org.bukkit.entity.EntityType;
+ 
+ import com.google.common.base.Charsets;
+ 
+-import de.minetick.MinetickChunkCoordComparator.ChunkPriority;
+-import de.minetick.antixray.AntiXRay;
+-import de.minetick.packetbuilder.PacketBuilderThreadPool;
+ import de.minetick.pathsearch.MinetickNavigation;
+ import de.minetick.pathsearch.PathSearchThrottlerThread;
+ 
+@@ -42,6 +39,7 @@ public class MinetickModConfig {
+     private File configFile;
+     private FileConfiguration configuration;
+     private HashSet<String> notGeneratingWorlds = new HashSet<String>();
++    private HashSet<EntityType> entitiesWithOffloadedPathSearches = new HashSet<EntityType>();
+ 
+     public MinetickModConfig(File configFile) throws IOException, InvalidConfigurationException {
+         this.configFile = configFile;
+@@ -67,6 +65,8 @@ public class MinetickModConfig {
+ 
+     private void loadConfigContent() {
+         this.loadNotGeneratingWorlds(this.getNotGeneratingWorlds());
++        this.loadEntitiesWithOffloadedPathSearches(this.getEntitiesWithOffloadedPathSearches());
++        MinetickNavigation.setMinimumDistanceForOffloading(this.getMinimumTargetDistanceForOffloading());
+     }
+ 
+     private FileConfiguration loadConfig(File file) throws IOException, InvalidConfigurationException {
+@@ -127,4 +127,33 @@ public class MinetickModConfig {
+     public boolean doesWorldNotGenerateChunks(String worldName) {
+         return this.notGeneratingWorlds.contains(worldName.toLowerCase());
+     }
++
++    public List<String> getEntitiesWithOffloadedPathSearches() {
++        return configuration.getStringList("minetickmod.entitiesWithOffloadedPathSearches");
++    }
++
++    public int getMinimumTargetDistanceForOffloading() {
++        return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", 8);
++    }
++
++    private void loadEntitiesWithOffloadedPathSearches(List<String> entities) {
++        this.entitiesWithOffloadedPathSearches.clear();
++        for(String name: entities) {
++            try {
++                EntityType type = EntityType.valueOf(name.toUpperCase());
++                this.entitiesWithOffloadedPathSearches.add(type);
++            } catch (IllegalArgumentException e) {
++                logger.warn("[MinetickMod] Settings: Skipping \"" + name + "\", as it is not a constant in org.bukkit.entity.EntityType!");
++            }
++        }
++    }
++
++    public boolean isPathSearchOffloadedFor(EntityInsentient entity) {
++        return this.entitiesWithOffloadedPathSearches.contains(entity.getBukkitEntity().getType());
++    }
++
++    public int getPathSearchPoolSize() {
++        int threadcount = configuration.getInt("minetickmod.pathSearchThreadPoolSize", 2);
++        return Math.max(1, Math.min(threadcount, 32));
++    }
+ }
 diff --git a/src/main/java/de/minetick/pathsearch/MinetickNavigation.java b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
 new file mode 100644
-index 0000000..77c67d1
+index 0000000..b22ae17
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,222 @@
 +package de.minetick.pathsearch;
 +
 +import java.util.HashMap;
@@ -126,9 +163,7 @@ index 0000000..77c67d1
 +    
 +    private HashMap<UUID, SearchCacheEntry> searchCache;
 +    private HashMap<PositionPathSearchType, SearchCacheEntryPosition> positionSearchCache;
-+    private boolean offloadSearches;
-+    private boolean offloadSearchesConfigChecked;
-+    private double minimumDistanceForOffloadingSquared;
++    private static double minimumDistanceForOffloadingSquared = 0.0D;
 +    private int cleanUpDelay = 0;
 +    private Object jobLock = new Object();
 +    private PathSearchJob lastIssuedJob;
@@ -137,10 +172,10 @@ index 0000000..77c67d1
 +        super(entityinsentient, world);
 +        this.searchCache = new HashMap<UUID, SearchCacheEntry>();
 +        this.positionSearchCache = new HashMap<PositionPathSearchType, SearchCacheEntryPosition>();
-+        this.offloadSearches = false;
-+        this.offloadSearchesConfigChecked = false;
-+        double minDist = MinetickMod.getMinimumPathSearchOffloadDistance();
-+        this.minimumDistanceForOffloadingSquared = minDist * minDist;
++    }
++
++    public static void setMinimumDistanceForOffloading(double distance) {
++        minimumDistanceForOffloadingSquared = distance * distance;
 +    }
 +
 +    private boolean hasAsyncSearchIssued() {
@@ -203,7 +238,7 @@ index 0000000..77c67d1
 +
 +    @Override
 +    public PathEntity a(Entity entity) {
-+        if(!this.offloadSearches() || this.b.h(entity) < this.minimumDistanceForOffloadingSquared) {
++        if(!this.offloadSearches() || this.b.h(entity) < minimumDistanceForOffloadingSquared) {
 +            return super.a(entity);
 +        }
 +        if(!this.b()) {
@@ -244,7 +279,7 @@ index 0000000..77c67d1
 +    }
 +
 +    public PathEntity a(BlockPosition blockposition, PositionPathSearchType type) {
-+        if(!this.offloadSearches() || this.b.c(blockposition) < this.minimumDistanceForOffloadingSquared) {
++        if(!this.offloadSearches() || this.b.c(blockposition) < minimumDistanceForOffloadingSquared) {
 +            return super.a(blockposition);
 +        }
 +        if(!this.b()) {
@@ -324,11 +359,7 @@ index 0000000..77c67d1
 +    }
 +
 +    private boolean offloadSearches() {
-+        if(!this.offloadSearchesConfigChecked) {
-+            this.offloadSearches = MinetickMod.isPathSearchOffloadedFor(this.b);
-+            this.offloadSearchesConfigChecked = true;
-+        }
-+        return this.offloadSearches;
++        return MinetickMod.getConfig().isPathSearchOffloadedFor(this.b);
 +    }
 +}
 diff --git a/src/main/java/de/minetick/pathsearch/PathSearchJob.java b/src/main/java/de/minetick/pathsearch/PathSearchJob.java
@@ -512,110 +543,86 @@ index 0000000..4e691c6
 +}
 diff --git a/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
 new file mode 100644
-index 0000000..42909f7
+index 0000000..3a9997d
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,79 @@
 +package de.minetick.pathsearch;
 +
 +import java.util.Iterator;
 +import java.util.LinkedHashMap;
 +import java.util.Map.Entry;
-+import java.util.concurrent.ExecutorService;
-+import java.util.concurrent.Executors;
-+import java.util.concurrent.Future;
-+import java.util.concurrent.RejectedExecutionException;
++import java.util.concurrent.LinkedBlockingQueue;
++import java.util.concurrent.ThreadPoolExecutor;
++import java.util.concurrent.TimeUnit;
 +
-+import net.minecraft.server.Entity;
-+
-+import org.bukkit.craftbukkit.entity.CraftEntity;
-+import org.bukkit.entity.EntityType;
-+
-+import de.minetick.MinetickMod;
 +import de.minetick.MinetickThreadFactory;
 +
-+public class PathSearchThrottlerThread implements Runnable {
++public class PathSearchThrottlerThread extends ThreadPoolExecutor {
 +
-+    private static final int POOL_SIZE = 2;
-+    private ExecutorService pathFinder = Executors.newScheduledThreadPool(POOL_SIZE, new MinetickThreadFactory(Thread.MIN_PRIORITY, "MinetickMod_PathFinder"));
-+    private Future<?>[] activeJobs;
-+    private Object waitObject;
++    private int queueLimit;
 +    private LinkedHashMap<PathSearchJob, PathSearchJob> filter;
-+    private Thread thread;
-+    private boolean running;
++    private static PathSearchThrottlerThread instance;
 +
-+    public PathSearchThrottlerThread() {
-+        this.waitObject = new Object();
++    public PathSearchThrottlerThread(int poolSize) {
++        super(poolSize, poolSize, 1L, TimeUnit.MINUTES, new LinkedBlockingQueue<Runnable>(), new MinetickThreadFactory(Thread.MIN_PRIORITY, "MinetickMod_PathFinder"));
++        instance = this;
++        adjustPoolSize(poolSize);
 +        this.filter = new LinkedHashMap<PathSearchJob, PathSearchJob>();
-+        this.activeJobs = new Future<?>[POOL_SIZE * 8];
-+        this.thread = new Thread(this);
-+        this.running = true;
-+        this.thread.setName("MinetickMod_PathSearchThrottlerThread");
-+        this.thread.setPriority(Thread.MIN_PRIORITY + 1);
-+        this.thread.start();
 +    }
 +
-+    public boolean queuePathSearch(PathSearchJob job) {
-+        synchronized(this.filter) {
-+            if(this.filter.size() < 1000 || this.filter.containsKey(job)) {
-+                PathSearchJob previousJob = this.filter.put(job, job);
-+                if(previousJob != null) {
-+                    previousJob.cleanup();
-+                }
-+            } else {
-+                return false;
-+            }
-+        }
-+        this.wakeUp();
-+        return true;
-+    }
-+
-+    public void wakeUp() {
-+        synchronized(this.waitObject) {
-+            this.waitObject.notifyAll();
-+        }
-+    }
-+
-+    public void shutdown() {
-+        this.running = false;
-+        this.pathFinder.shutdownNow();
-+    }
-+
-+    private boolean checkPendingJobs() {
-+        boolean newSearchesSubmitted = false;
-+        for(int i = 0; i < this.activeJobs.length && !this.filter.isEmpty(); i++) {
-+            Future<?> f = this.activeJobs[i];
-+            if(f == null || f.isDone()) {
-+                this.activeJobs[i] = null;
-+                PathSearchJob job = null;
-+                synchronized(this.filter) {
-+                    Iterator<Entry<PathSearchJob, PathSearchJob>> iter = this.filter.entrySet().iterator();
-+                    if(iter.hasNext()) {
-+                        job = iter.next().getValue();
-+                        iter.remove();
++    public boolean queuePathSearch(PathSearchJob newJob) {
++        boolean jobHasBeenQueued = false;
++        if(newJob != null) {
++            synchronized(this.filter) {
++                if(this.filter.containsKey(newJob) || this.filter.size() < 1000) {
++                    jobHasBeenQueued = true;
++                    PathSearchJob previousJob = this.filter.put(newJob, newJob);
++                    if(previousJob != null) {
++                        previousJob.cleanup();
 +                    }
 +                }
-+                if(job != null) {
-+                    try {
-+                        this.activeJobs[i] = this.pathFinder.submit(job);
-+                        newSearchesSubmitted = true;
-+                    } catch (RejectedExecutionException exception) { }
++            }
++        }
++        PathSearchJob jobToExecute = null;
++        synchronized(this.filter) {
++            Iterator<Entry<PathSearchJob, PathSearchJob>> iter = this.filter.entrySet().iterator();
++            while(iter.hasNext() && this.getQueue().size() < this.queueLimit) {
++                jobToExecute = iter.next().getValue();
++                iter.remove();
++                if(jobToExecute != null) {
++                    this.execute(jobToExecute);
++                }
++                if(newJob != null) {
++                    break;
 +                }
 +            }
 +        }
-+        return !this.filter.isEmpty() && newSearchesSubmitted;
++        return jobHasBeenQueued;
 +    }
 +
 +    @Override
-+    public void run() {
-+        while(this.running) {
-+            if(!this.checkPendingJobs()) {
-+                synchronized(this.waitObject) {
-+                    try {
-+                        this.waitObject.wait(5L);
-+                    } catch (InterruptedException e) {}
-+                }
++    public void shutdown() {
++        this.getQueue().clear();
++        super.shutdown();
++    }
++
++    @Override
++    protected void afterExecute(Runnable runnable, Throwable throwable) {
++        super.afterExecute(runnable, throwable);
++        this.queuePathSearch(null);
++    }
++
++    public static void adjustPoolSize(int size) {
++        if(instance != null) {
++            if(size > instance.getMaximumPoolSize()) {
++                instance.setMaximumPoolSize(size);
++                instance.setCorePoolSize(size);
++            } else if(size < instance.getMaximumPoolSize()) {
++                instance.setCorePoolSize(size);
++                instance.setMaximumPoolSize(size);
 +            }
++            instance.queueLimit = size * 8;
 +        }
 +    }
 +}
@@ -1057,34 +1064,14 @@ index 0a14c9d..db8f0e8 100644
                                  return -3;
                              }
                          } else if (!block.b(iblockaccess, blockposition_mutableblockposition) && (!flag1 || !(block instanceof BlockDoor) || block.getMaterial() != Material.WOOD)) {
-diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 629e6b8..b35a935 100644
---- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1642,4 +1642,14 @@ public final class CraftServer implements Server {
-     public UnsafeValues getUnsafe() {
-         return CraftMagicNumbers.INSTANCE;
-     }
-+
-+    // MinetickMod start
-+    public List<String> getMinetickModEntitiesWithOffloadedPathSearches() {
-+        return configuration.getStringList("minetickmod.entitiesWithOffloadedPathSearches");
-+    }
-+
-+    public int getMinetickModMinimumTargetDistanceForOffloading(int defaultDistance) {
-+        return configuration.getInt("minetickmod.minimumTargetDistanceForOffloadedPathSearches", defaultDistance);
-+    }
-+    // MinetickMod end
- }
-diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index a6c1178..6114b29 100644
---- a/src/main/resources/configurations/bukkit.yml
-+++ b/src/main/resources/configurations/bukkit.yml
-@@ -44,3 +44,27 @@ database:
-     driver: org.sqlite.JDBC
-     password: walrus
-     url: jdbc:sqlite:{DIR}{NAME}.db
-+minetickmod:
+diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
+index 3393dda..03f2445 100644
+--- a/src/main/resources/configurations/minetickmod.yml
++++ b/src/main/resources/configurations/minetickmod.yml
+@@ -3,3 +3,26 @@ minetickmod:
+     profiler-write-log: false
+     profiler-write-interval: 10
+     notGeneratingWorlds: []
 +    minimumTargetDistanceForOffloadedPathSearches: 0
 +    entitiesWithOffloadedPathSearches:
 +    - BAT
