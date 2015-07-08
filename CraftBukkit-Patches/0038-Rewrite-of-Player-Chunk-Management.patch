@@ -1,4 +1,4 @@
-From 8bf8bfc23cf71ee9bffe5f650e9a981d9582cc80 Mon Sep 17 00:00:00 2001
+From 3ca19ab88be4908067b72c54909ec9f4dbe1a1f5 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 26 May 2015 00:47:37 +0200
 Subject: [PATCH] Rewrite of Player Chunk Management
@@ -212,7 +212,7 @@ index 0000000..4aa6023
 +    }
 +}
 diff --git a/src/main/java/de/minetick/MinetickMod.java b/src/main/java/de/minetick/MinetickMod.java
-index 0f1731c..ecc2c66 100644
+index 36c046e..fc18fe7 100644
 --- a/src/main/java/de/minetick/MinetickMod.java
 +++ b/src/main/java/de/minetick/MinetickMod.java
 @@ -8,6 +8,8 @@ import java.util.Collections;
@@ -249,10 +249,10 @@ index 0f1731c..ecc2c66 100644
  import de.minetick.pathsearch.PathSearchJob;
  import de.minetick.pathsearch.PathSearchThrottlerThread;
  import de.minetick.profiler.Profiler;
-@@ -66,12 +75,16 @@ public class MinetickMod {
+@@ -65,12 +74,16 @@ public class MinetickMod {
+     private int ticksCounter = 0;
      private final Logger log = LogManager.getLogger();
      private PathSearchThrottlerThread pathSearchThrottler;
-     private boolean worldThreading;
 +    private File configFile;
 +    private FileConfiguration modConfig;
 +    private PacketBuilderThreadPool packetBuilderPool;
@@ -266,10 +266,10 @@ index 0f1731c..ecc2c66 100644
          instance = this;
          try {
              this.mainConfig = new MinetickModConfig(new File("minetickmod.yml"));
-@@ -99,6 +112,20 @@ public class MinetickMod {
+@@ -96,6 +109,20 @@ public class MinetickMod {
+             craftserver.getCommandMap().register("minetickmod-reload", "MinetickMod", new ReloadSettingsCommand("minetickmod-reload"));
+             craftserver.getCommandMap().register("worldstats", "MinetickMod", new WorldStatsCommand("worldstats"));
              this.profiler = new Profiler(this.mainConfig.getProfilerLogInterval(), this.mainConfig.getProfilerWriteEnabled(), this.mainConfig.getProfilerWriteInterval());
- 
-             this.worldThreading = craftserver.getMinetickModWorldThreading();
 +
 +            craftserver.getMinetickModPacketChunkRates(ChunkPriority.values());
 +
@@ -287,7 +287,7 @@ index 0f1731c..ecc2c66 100644
          }
      }
  
-@@ -117,6 +144,9 @@ public class MinetickMod {
+@@ -114,6 +141,9 @@ public class MinetickMod {
      public void shutdown() {
          this.timerService.shutdown();
          this.pathSearchThrottler.shutdown();
@@ -297,7 +297,7 @@ index 0f1731c..ecc2c66 100644
          this.nbtFileService.shutdown();
          while(!this.nbtFileService.isTerminated()) {
              try {
-@@ -125,6 +155,14 @@ public class MinetickMod {
+@@ -122,6 +152,14 @@ public class MinetickMod {
                  }
              } catch(InterruptedException e) {}
          }
@@ -312,9 +312,9 @@ index 0f1731c..ecc2c66 100644
      }
  
      public void checkTickTime(long tickTime) {
-@@ -239,4 +277,26 @@ public class MinetickMod {
-     public static boolean isWorldThreadingEnabled() {
-         return instance.worldThreading;
+@@ -232,4 +270,26 @@ public class MinetickMod {
+                 entity instanceof EntityFireworks || entity instanceof EntityComplexPart ||
+                 entity instanceof EntityWeather);
      }
 +
 +    public static int minimumViewDistance() {
@@ -960,7 +960,7 @@ index 0000000..abe6962
 +    }
 +}
 diff --git a/src/main/java/de/minetick/WorldTicker.java b/src/main/java/de/minetick/WorldTicker.java
-index 4bc52a4..2d6fefd 100644
+index 8360e0d..57b77da 100644
 --- a/src/main/java/de/minetick/WorldTicker.java
 +++ b/src/main/java/de/minetick/WorldTicker.java
 @@ -35,6 +35,9 @@ public class WorldTicker implements Runnable {
@@ -972,7 +972,7 @@ index 4bc52a4..2d6fefd 100644
 +        worldProfile.stop(WorldProfileSection.CHUNK_LOADING);
          worldProfile.stop();
          worldProfile.setCurrentPlayerNumber(this.worldToTick.players.size());
-         if(MinetickMod.isWorldThreadingEnabled()) {
+         if(MinetickMod.getConfig().isThreadedWorldsEnabled()) {
 diff --git a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java b/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
 index 70a7c8e..f44aedd 100644
 --- a/src/main/java/de/minetick/modcommands/WorldStatsCommand.java
@@ -2256,7 +2256,7 @@ index e1faa27..878c728 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 210b273..c620732 100644
+index feee9d4..83574c4 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -122,6 +122,12 @@ import io.netty.buffer.Unpooled;
@@ -2272,11 +2272,12 @@ index 210b273..c620732 100644
  public final class CraftServer implements Server {
      private static final Player[] EMPTY_PLAYER_ARRAY = new Player[0];
      private final String serverName = "CraftBukkit";
-@@ -1653,5 +1659,45 @@ public final class CraftServer implements Server {
-     public boolean getMinetickModWorldThreading() {
-         return configuration.getBoolean("minetickmod.enableWorldThreading");
+@@ -1648,4 +1654,46 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
      }
 +
++    // MinetickMod start
 +    public Map<org.bukkit.WorldType, Double> getMinetickModMaxChunkGenerationRates() {
 +        ConfigurationSection section = configuration.getConfigurationSection("minetickmod.maxChunkGenerationRates");
 +        Set<String> subkeys = section.getKeys(false);
@@ -2316,16 +2317,17 @@ index 210b273..c620732 100644
 +        threadcount = Math.max(1, threadcount);
 +        return Math.min(32, threadcount);
 +    }
-     // MinetickMod end
++    // MinetickMod end
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index b40138e..217c982 100644
+index a6c1178..cbca932 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -46,3 +46,14 @@ database:
+@@ -44,3 +44,15 @@ database:
+     driver: org.sqlite.JDBC
+     password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
- minetickmod:
-     enableWorldThreading: true
++minetickmod:
 +    packetBuilderThreadPoolSize: 4
 +    packetChunkRates:
 +        HIGHEST: 5
