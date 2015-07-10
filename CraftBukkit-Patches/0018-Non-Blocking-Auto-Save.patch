@@ -1,4 +1,4 @@
-From 936261102258b8cea84d9ce5c3162aa665557940 Mon Sep 17 00:00:00 2001
+From 591951f6e5759e0884dce8c8502522e3dc85d09c Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 15:40:04 +0100
 Subject: [PATCH] Non Blocking Auto Save
@@ -90,7 +90,7 @@ index 7da82ec..cd751c2 100644
          Thread thread = new Thread(this, "File IO Thread");
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 38427e2..38f7469 100644
+index 2ee8a3f..13cd245 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -10,6 +10,7 @@ import com.mojang.authlib.GameProfile;
@@ -114,7 +114,7 @@ index 38427e2..38f7469 100644
 +
  public abstract class MinecraftServer implements Runnable, ICommandListener, IAsyncTaskHandler, IMojangStatistics {
  
-     public static final Logger LOGGER = LogManager.getLogger(); // CraftBukkit - make public
+     public static final Logger LOGGER = LogManager.getLogger();
 @@ -122,6 +130,40 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
      // MinetickMod start

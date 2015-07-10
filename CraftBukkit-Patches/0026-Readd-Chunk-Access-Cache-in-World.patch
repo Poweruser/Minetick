@@ -1,11 +1,11 @@
-From 71f33e08ff5f834ab8082cf3d44315607c6ff61a Mon Sep 17 00:00:00 2001
+From 0a1feceb1cb4700734ecbfb63f80dd002bb1fbb6 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 12:38:51 +0100
 Subject: [PATCH] Readd Chunk Access Cache in World
 
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 90cdac4..8981a20 100644
+index 1edacb6..7731e97 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -43,6 +43,18 @@ public class Chunk {
@@ -28,7 +28,7 @@ index 90cdac4..8981a20 100644
      private int neighbors = 0x1 << 12;
  
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index a318574..b399dc0 100644
+index c52f29d..fcfc508 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -364,6 +364,7 @@ public class ChunkProviderServer implements IChunkProvider {
@@ -40,7 +40,7 @@ index a318574..b399dc0 100644
                          this.saveChunk(chunk);
                          this.saveChunkNOP(chunk);
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 056799e..0d602ef 100644
+index 8260db7..dbad8ff 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -170,6 +170,10 @@ public abstract class World implements IBlockAccess {
@@ -87,12 +87,12 @@ index 056799e..0d602ef 100644
  
      public boolean setTypeAndData(BlockPosition blockposition, IBlockData iblockdata, int i) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index b1521ad..4e3e879 100644
+index e3403ec..1591fcc 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -38,7 +38,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
-     // private final Set<NextTickListEntry> L = Sets.newHashSet(); // CraftBukkit, PAIL: Rename nextTickListHash
-     private final HashTreeSet<NextTickListEntry> M = new HashTreeSet<NextTickListEntry>(); // CraftBukkit - HashTreeSet, PAIL: Rename nextTickList
+     // private final Set<NextTickListEntry> L = Sets.newHashSet(); // PAIL: Rename nextTickListHash
+     private final HashTreeSet<NextTickListEntry> M = new HashTreeSet<NextTickListEntry>(); // CraftBukkit - HashTreeSet // PAIL: Rename nextTickList
      private final Map<UUID, Entity> entitiesByUUID = Maps.newHashMap();
 -    public ChunkProviderServer chunkProviderServer;
 +    //public ChunkProviderServer chunkProviderServer; // MinetickMod - moved to World
@@ -100,10 +100,10 @@ index b1521ad..4e3e879 100644
      private boolean O;
      private int emptyTime;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 9e158e1..117bf16 100644
+index 554e3b7..b17b809 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -185,6 +185,7 @@ public class CraftWorld implements World {
+@@ -186,6 +186,7 @@ public class CraftWorld implements World {
              save = true;
          }
  

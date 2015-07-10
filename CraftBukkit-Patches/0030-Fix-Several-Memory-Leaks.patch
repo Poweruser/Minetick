@@ -1,4 +1,4 @@
-From c109ca36b7d5093b79ac061ad95bced95b8d47fe Mon Sep 17 00:00:00 2001
+From ee2287284a0f203a72a4e65302480778a26659ae Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 24 Mar 2015 11:07:30 +0100
 Subject: [PATCH] Fix Several Memory Leaks
@@ -44,7 +44,7 @@ index 9865681..da8b470 100644
  
      public static int a(EntityLiving entityliving) {
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index 5df280c..fbf801c 100644
+index 05d8a1a..64b3878 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
 @@ -1,5 +1,6 @@
@@ -56,13 +56,13 @@ index 5df280c..fbf801c 100644
  import java.util.UUID;
 @@ -26,7 +27,7 @@ public abstract class EntityInsentient extends EntityLiving {
      protected NavigationAbstract navigation;
-     public PathfinderGoalSelector goalSelector; // CraftBukkit - public
-     public PathfinderGoalSelector targetSelector; // CraftBukkit - public
+     public PathfinderGoalSelector goalSelector; // PAIL: -final
+     public PathfinderGoalSelector targetSelector; // PAIL: -final
 -    private EntityLiving goalTarget;
 +    private WeakReference<EntityLiving> goalTarget = new WeakReference<EntityLiving>(null); // MinetickMod
      private EntitySenses bk;
      private ItemStack[] equipment = new ItemStack[5];
-     public float[] dropChances = new float[5]; // CraftBukkit - public
+     public float[] dropChances = new float[5];
 @@ -86,7 +87,7 @@ public abstract class EntityInsentient extends EntityLiving {
      }
  
@@ -82,7 +82,7 @@ index 5df280c..fbf801c 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index cd67d2b..ef6593e 100644
+index 7623b42..5a5776e 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -230,6 +230,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
@@ -155,7 +155,7 @@ index 7890079..54d866d 100644
 +    // MinetickMod end
  }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 0d602ef..5c821bd 100644
+index dbad8ff..d6795a2 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1039,6 +1039,7 @@ public abstract class World implements IBlockAccess {

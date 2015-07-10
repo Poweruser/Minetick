@@ -1,4 +1,4 @@
-From e0450e66f66356f8004261b9fe01902db9ffdb78 Mon Sep 17 00:00:00 2001
+From 6f4ddece2845a48ad18553a3984c4bffcbf605c7 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 7 Jul 2015 08:30:40 +0200
 Subject: [PATCH] Allow Disabling of Chunk Generation
@@ -157,13 +157,13 @@ index c14a63b..a4d121d 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 3923cd1..90cdac4 100644
+index 1b68736..1edacb6 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -32,8 +32,8 @@ public class Chunk {
      private boolean k;
      public final Map<BlockPosition, TileEntity> tileEntities;
-     public final EntitySlice<Entity>[] entitySlices; // CraftBukkit - public
+     public final EntitySlice<Entity>[] entitySlices;
 -    private boolean done;
 -    private boolean lit;
 +    protected boolean done; // MinetickMod - protected
@@ -172,7 +172,7 @@ index 3923cd1..90cdac4 100644
      private boolean q;
      private boolean r;
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 22c3906..151e338 100644
+index a749ecc..c52f29d 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -1,6 +1,7 @@
@@ -197,7 +197,7 @@ index 22c3906..151e338 100644
      private static final Logger b = LogManager.getLogger();
 @@ -34,8 +40,13 @@ public class ChunkProviderServer implements IChunkProvider {
      public LongObjectHashMap<Chunk> chunks = new LongObjectHashMap<Chunk>();
-     public WorldServer world; // CraftBukkit - public
+     public WorldServer world;
  
 +    // MinetickMod start
 +    private MinetickEmptyChunk mtEmptyChunk;
@@ -232,7 +232,7 @@ index 22c3906..151e338 100644
 @@ -230,7 +245,7 @@ public class ChunkProviderServer implements IChunkProvider {
      }
  
-     public void saveChunkNOP(Chunk chunk) { // CraftBukkit - public
+     public void saveChunkNOP(Chunk chunk) {
 -        if (this.chunkLoader != null) {
 +        if (this.chunkLoader != null && !chunk.isEmpty()) { // MinetickMod - dont save empty chunks
              try {
@@ -241,7 +241,7 @@ index 22c3906..151e338 100644
 @@ -241,7 +256,7 @@ public class ChunkProviderServer implements IChunkProvider {
      }
  
-     public void saveChunk(Chunk chunk) { // CraftBukkit - public
+     public void saveChunk(Chunk chunk) {
 -        if (this.chunkLoader != null) {
 +        if (this.chunkLoader != null && !chunk.isEmpty()) { // MinetickMod - dont save empty chunks
              try {

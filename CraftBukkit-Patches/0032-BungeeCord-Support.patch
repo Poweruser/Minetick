@@ -1,4 +1,4 @@
-From e748e5fe0fab34ee3a33b3603242d3ea17e3abe7 Mon Sep 17 00:00:00 2001
+From da92bbe62a83db36bfe76d9eee08aaa8f9d8ee31 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 04:26:23 +0200
 Subject: [PATCH] BungeeCord Support
@@ -18,7 +18,7 @@ index 22a057c..2f0713f 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
-index 796d3d3..0a3839f 100644
+index 3b6a514..ef0c877 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
 +++ b/src/main/java/net/minecraft/server/HandshakeListener.java
 @@ -5,8 +5,11 @@ import java.net.InetAddress;
@@ -85,13 +85,13 @@ index 73c0f42..00ddd1a 100644
      // MinetickMod end
  
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index ef6593e..e6ac379 100644
+index 5a5776e..ff1e70d 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -64,7 +64,11 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
      private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue();
      private final ReentrantReadWriteLock j = new ReentrantReadWriteLock();
-     public Channel channel;  // CraftBukkit - public
+     public Channel channel;
 -    private SocketAddress l;
 +    // MinetickMod start
 +    public SocketAddress l;
@@ -113,7 +113,7 @@ index ef6593e..e6ac379 100644
 +    // MinetickMod end
  }
 diff --git a/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java b/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
-index cc5aee0..2141e5f 100644
+index a1c5869..6cc9b91 100644
 --- a/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
 +++ b/src/main/java/net/minecraft/server/PacketHandshakingInSetProtocol.java
 @@ -13,7 +13,7 @@ public class PacketHandshakingInSetProtocol implements Packet<PacketHandshakingI
@@ -126,7 +126,7 @@ index cc5aee0..2141e5f 100644
          this.d = EnumProtocol.a(packetdataserializer.e());
      }
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index f24cee6..203ce3c 100644
+index 3d995d2..a9f80c8 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -403,7 +403,7 @@ public abstract class PlayerList {
@@ -139,10 +139,10 @@ index f24cee6..203ce3c 100644
  
          if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 629e6b8..feee9d4 100644
+index 8849087..631581d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -559,7 +559,13 @@ public final class CraftServer implements Server {
+@@ -555,7 +555,13 @@ public final class CraftServer implements Server {
  
      @Override
      public long getConnectionThrottle() {
@@ -158,10 +158,10 @@ index 629e6b8..feee9d4 100644
  
      @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index e229dc0..17b9809 100644
+index 813adbb..a8951f3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -123,6 +123,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -124,6 +124,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
      }
  
@@ -175,7 +175,7 @@ index e229dc0..17b9809 100644
      public double getEyeHeight() {
          return getEyeHeight(false);
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index f8b808c..5931545 100644
+index 4bf2d54..857d0e0 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
 @@ -27,3 +27,4 @@ minetickmod:

@@ -1,14 +1,14 @@
-From 7d27d4524a8231efdf7a01b012d601b685406cce Mon Sep 17 00:00:00 2001
+From c08005ccf7be249d2f931bfa37ebd06022211ec3 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 24 Mar 2015 11:50:54 +0100
 Subject: [PATCH] BungeeCord Support
 
 
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 229a71a..1297ad8 100644
+index 6b955e4..e664676 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -97,6 +97,16 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -98,6 +98,16 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       */
      public InetSocketAddress getAddress();
  

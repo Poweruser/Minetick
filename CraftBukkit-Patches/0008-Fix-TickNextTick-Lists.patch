@@ -1,11 +1,11 @@
-From aeb41e5183db5ad627684157817f2bc75d7080c1 Mon Sep 17 00:00:00 2001
+From 3cc4a5cd4506455c171c2218f12624bc0134db33 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 19 Apr 2015 15:17:51 +0200
 Subject: [PATCH] Fix TickNextTick Lists
 
 
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 40e63fc..dcd359a 100644
+index d27aa67..72dfe7f 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -568,6 +568,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {
@@ -21,19 +21,7 @@ index 40e63fc..dcd359a 100644
              int i = this.M.size();
  
              if (false) { // CraftBukkit
-@@ -653,9 +659,11 @@ public class WorldServer extends World implements IAsyncTaskHandler {
-                 iterator = this.M.iterator();
-             } else {
-                 iterator = this.V.iterator();
-+                /* MinetickMod start - Comment out debug spam - This is actually a missed diff in CraftBukkit
-                 if (!this.V.isEmpty()) {
-                     WorldServer.a.debug("toBeTicked = " + this.V.size());
-                 }
-+                */
-             }
- 
-             while (iterator.hasNext()) {
-@@ -664,6 +672,13 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -661,6 +667,13 @@ public class WorldServer extends World implements IAsyncTaskHandler {
  
                  if (blockposition.getX() >= structureboundingbox.a && blockposition.getX() < structureboundingbox.d && blockposition.getZ() >= structureboundingbox.c && blockposition.getZ() < structureboundingbox.f) {
                      if (flag) {

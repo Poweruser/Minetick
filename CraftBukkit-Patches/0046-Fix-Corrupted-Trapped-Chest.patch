@@ -1,11 +1,11 @@
-From 06c1d6f57e2a6ab5a6c9be3aa6555bb9f9d28802 Mon Sep 17 00:00:00 2001
+From 9539fde054490526ee8d110846589847654ac3fe Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 25 Apr 2015 20:01:56 +0200
 Subject: [PATCH] Fix Corrupted Trapped Chest
 
 
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 76bcb0a..0e53768 100644
+index 0ec8263..8e43665 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -163,7 +163,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
