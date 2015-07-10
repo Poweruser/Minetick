@@ -1,6 +1,6 @@
-From 1170b33a85cd75030d03029fd24c6d1e885b8f3c Mon Sep 17 00:00:00 2001
+From cd8844f6e7cef35cf380296775ddea1190520c14 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Wed, 8 Jul 2015 06:37:05 +0200
+Date: Fri, 10 Jul 2015 02:24:15 +0200
 Subject: [PATCH] Async Path Searches
 
 
@@ -137,10 +137,10 @@ index a4d121d..22a057c 100644
  }
 diff --git a/src/main/java/de/minetick/pathsearch/MinetickNavigation.java b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
 new file mode 100644
-index 0000000..b22ae17
+index 0000000..c7c8d5d
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/MinetickNavigation.java
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,221 @@
 +package de.minetick.pathsearch;
 +
 +import java.util.HashMap;
@@ -167,7 +167,7 @@ index 0000000..b22ae17
 +    private static double minimumDistanceForOffloadingSquared = 0.0D;
 +    private int cleanUpDelay = 0;
 +    private Object jobLock = new Object();
-+    private PathSearchJob lastIssuedJob;
++    private PathSearchJob lastQueuedJob;
 +    
 +    public MinetickNavigation(EntityInsentient entityinsentient, World world) {
 +        super(entityinsentient, world);
@@ -180,34 +180,33 @@ index 0000000..b22ae17
 +    }
 +
 +    private boolean hasAsyncSearchIssued() {
-+        return this.lastIssuedJob != null;
-+    }
-+    
-+    private void issueSearch(Entity target) {
-+        PathSearchJob job = new PathSearchJobEntity(this, target);
 +        synchronized(this.jobLock) {
-+            PathSearchJob previous = this.lastIssuedJob;
-+            this.lastIssuedJob = job;
-+            if(!MinetickMod.queuePathSearch(job)) {
-+                this.lastIssuedJob = previous;
++            return this.lastQueuedJob != null;
++        }
++    }
++
++    private void queueSearch(PathSearchJob job) {
++        synchronized(this.jobLock) {
++            PathSearchJob previous = this.lastQueuedJob;
++            if(MinetickMod.queuePathSearch(job)) {
++                this.lastQueuedJob = job;
 +            }
 +        }
 +    }
 +
++    private void issueSearch(Entity target) {
++        this.queueSearch(new PathSearchJobEntity(this, target));
++    }
++
 +    private void issueSearch(BlockPosition blockposition, PositionPathSearchType type) {
-+        PathSearchJob job = new PathSearchJobPosition(this, blockposition, type);
-+        PathSearchJob previous = this.lastIssuedJob;
-+        this.lastIssuedJob = job;
-+        if(!MinetickMod.queuePathSearch(job)) {
-+            this.lastIssuedJob = previous;
-+        }
++        this.queueSearch(new PathSearchJobPosition(this, blockposition, type));
 +    }
 +
 +    @Override
 +    public void setSearchResult(PathSearchJobEntity pathSearch) {
 +        synchronized (this.jobLock) {
-+            if(this.lastIssuedJob == pathSearch) {
-+                this.lastIssuedJob = null;
++            if(this.lastQueuedJob == pathSearch) {
++                this.lastQueuedJob = null;
 +            }
 +        }
 +        SearchCacheEntry entry = pathSearch.getCacheEntryValue();
@@ -223,8 +222,8 @@ index 0000000..b22ae17
 +    @Override
 +    public void setSearchResult(PathSearchJobPosition pathSearch) {
 +        synchronized(this.jobLock) {
-+            if(this.lastIssuedJob == pathSearch) {
-+                this.lastIssuedJob = null;
++            if(this.lastQueuedJob == pathSearch) {
++                this.lastQueuedJob = null;
 +            }
 +        }
 +        SearchCacheEntryPosition entry = pathSearch.getCacheEntryValue();
@@ -365,10 +364,10 @@ index 0000000..b22ae17
 +}
 diff --git a/src/main/java/de/minetick/pathsearch/PathSearchJob.java b/src/main/java/de/minetick/pathsearch/PathSearchJob.java
 new file mode 100644
-index 0000000..4c38933
+index 0000000..bf8169b
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/PathSearchJob.java
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,50 @@
 +package de.minetick.pathsearch;
 +
 +import net.minecraft.server.ChunkCache;
@@ -404,6 +403,10 @@ index 0000000..4c38933
 +
 +    @Override
 +    public int hashCode() {
++        return this.hashCode;
++    }
++
++    public final int getSearchHash() {
 +        return this.hashCode;
 +    }
 +
@@ -544,12 +547,13 @@ index 0000000..4e691c6
 +}
 diff --git a/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
 new file mode 100644
-index 0000000..3a9997d
+index 0000000..7006d8b
 --- /dev/null
 +++ b/src/main/java/de/minetick/pathsearch/PathSearchThrottlerThread.java
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,93 @@
 +package de.minetick.pathsearch;
 +
++import java.util.HashSet;
 +import java.util.Iterator;
 +import java.util.LinkedHashMap;
 +import java.util.Map.Entry;
@@ -557,12 +561,15 @@ index 0000000..3a9997d
 +import java.util.concurrent.ThreadPoolExecutor;
 +import java.util.concurrent.TimeUnit;
 +
++import net.minecraft.server.EntityInsentient;
++
 +import de.minetick.MinetickThreadFactory;
 +
 +public class PathSearchThrottlerThread extends ThreadPoolExecutor {
 +
 +    private int queueLimit;
 +    private LinkedHashMap<PathSearchJob, PathSearchJob> filter;
++    private HashSet<Integer> activeSearchHashes;
 +    private static PathSearchThrottlerThread instance;
 +
 +    public PathSearchThrottlerThread(int poolSize) {
@@ -570,6 +577,7 @@ index 0000000..3a9997d
 +        instance = this;
 +        adjustPoolSize(poolSize);
 +        this.filter = new LinkedHashMap<PathSearchJob, PathSearchJob>();
++        this.activeSearchHashes = new HashSet<Integer>();
 +    }
 +
 +    public boolean queuePathSearch(PathSearchJob newJob) {
@@ -590,12 +598,15 @@ index 0000000..3a9997d
 +            Iterator<Entry<PathSearchJob, PathSearchJob>> iter = this.filter.entrySet().iterator();
 +            while(iter.hasNext() && this.getQueue().size() < this.queueLimit) {
 +                jobToExecute = iter.next().getValue();
-+                iter.remove();
-+                if(jobToExecute != null) {
-+                    this.execute(jobToExecute);
-+                }
-+                if(newJob != null) {
-+                    break;
++                if(!this.activeSearchHashes.contains(jobToExecute.getSearchHash())) {
++                    iter.remove();
++                    if(jobToExecute != null) {
++                        this.activeSearchHashes.add(jobToExecute.getSearchHash());
++                        this.execute(jobToExecute);
++                    }
++                    if(newJob != null) {
++                        break;
++                    }
 +                }
 +            }
 +        }
@@ -611,6 +622,12 @@ index 0000000..3a9997d
 +    @Override
 +    protected void afterExecute(Runnable runnable, Throwable throwable) {
 +        super.afterExecute(runnable, throwable);
++        if(runnable instanceof PathSearchJob) {
++            PathSearchJob job = (PathSearchJob) runnable;
++            synchronized(this.filter) {
++                this.activeSearchHashes.remove(job.getSearchHash());
++            }
++        }
 +        this.queuePathSearch(null);
 +    }
 +
@@ -1066,14 +1083,14 @@ index 0a14c9d..db8f0e8 100644
                              }
                          } else if (!block.b(iblockaccess, blockposition_mutableblockposition) && (!flag1 || !(block instanceof BlockDoor) || block.getMaterial() != Material.WOOD)) {
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index 3393dda..f8b808c 100644
+index 3393dda..4bf2d54 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
 @@ -3,3 +3,27 @@ minetickmod:
      profiler-write-log: false
      profiler-write-interval: 10
      notGeneratingWorlds: []
-+    pathSearchThreadPoolSize: 2
++    pathSearchThreadPoolSize: 1
 +    minimumTargetDistanceForOffloadedPathSearches: 0
 +    entitiesWithOffloadedPathSearches:
 +    - BAT
