@@ -1,4 +1,4 @@
-From 5c6b96c498821c71cf5007610b84036f5376fa0e Mon Sep 17 00:00:00 2001
+From 065a4ee327085686f40673c9c15640c78bbc12de Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 05:18:25 +0200
 Subject: [PATCH] Threaded Worlds
@@ -528,7 +528,7 @@ index 0000000..74ad768
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 7eed46c..fe04e3b 100644
+index 7b09765..f1a5ffa 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -31,6 +31,10 @@ import org.bukkit.event.entity.EntityPortalEvent;
@@ -566,7 +566,7 @@ index 7eed46c..fe04e3b 100644
  
      public int getId() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 114888a..274fdc2 100644
+index e0e1d5d..f70777d 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -28,11 +28,14 @@ import java.util.Collections;
@@ -584,7 +584,7 @@ index 114888a..274fdc2 100644
  import java.util.concurrent.FutureTask;
  import javax.imageio.ImageIO;
  import org.apache.commons.lang3.Validate;
-@@ -56,7 +59,11 @@ import org.bukkit.event.world.WorldSaveEvent;
+@@ -52,7 +55,11 @@ import org.bukkit.craftbukkit.Main;
  import de.minetick.AutoSaveJob;
  import de.minetick.AutoSaveJob.JobDetail;
  import de.minetick.MinetickMod;
@@ -596,7 +596,7 @@ index 114888a..274fdc2 100644
  
  import java.util.LinkedList;
  // MinetickMod end
-@@ -136,6 +143,9 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -132,6 +139,9 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
      private int autoSaveDelay = 0;
      private boolean autoSaveOrdered = false;
@@ -606,7 +606,7 @@ index 114888a..274fdc2 100644
  
      private void queueWorldsForAutoSave() {
          if (!this.N) {
-@@ -173,6 +183,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -169,6 +179,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              ws.cancelHeavyCalculations(cancel);
          }
      }
@@ -620,7 +620,7 @@ index 114888a..274fdc2 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -588,13 +605,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -584,13 +601,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                      i += k;
                      this.ab = j;
                      if (this.worlds.get(0).everyoneDeeplySleeping()) { // CraftBukkit
@@ -636,7 +636,7 @@ index 114888a..274fdc2 100644
                          }
                      }
  
-@@ -776,6 +793,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -772,6 +789,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          int i;
  
@@ -644,7 +644,7 @@ index 114888a..274fdc2 100644
          for (i = 0; i < this.worlds.size(); ++i) {
              long j = System.nanoTime();
  
-@@ -783,6 +801,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -779,6 +797,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  WorldServer worldserver = this.worlds.get(i);
  
                  this.methodProfiler.a(worldserver.getWorldData().getName());
@@ -652,7 +652,7 @@ index 114888a..274fdc2 100644
                  /* Drop global time updates
                  if (this.ticks % 20 == 0) {
                      this.methodProfiler.a("timeSync");
-@@ -791,6 +810,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -787,6 +806,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  }
                  // CraftBukkit end */
  
@@ -660,7 +660,7 @@ index 114888a..274fdc2 100644
                  this.methodProfiler.a("tick");
  
                  CrashReport crashreport;
-@@ -821,7 +841,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -817,7 +837,63 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -725,7 +725,7 @@ index 114888a..274fdc2 100644
  
          for(i = 0; i < this.worlds.size(); ++i) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 5c821bd..1dc3b52 100644
+index d6795a2..e9b4104 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -34,6 +34,9 @@ import org.bukkit.event.weather.ThunderChangeEvent;
@@ -808,7 +808,7 @@ index 5c821bd..1dc3b52 100644
          this.methodProfiler.b();
      }
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 4e3e879..e1faa27 100644
+index 1591fcc..7f01a0d 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -29,6 +29,11 @@ import org.bukkit.event.block.BlockFormEvent;
@@ -843,7 +843,7 @@ index 4e3e879..e1faa27 100644
  
      // Add env and gen to constructor
 diff --git a/src/main/resources/configurations/minetickmod.yml b/src/main/resources/configurations/minetickmod.yml
-index 5931545..3facdd9 100644
+index 857d0e0..00de348 100644
 --- a/src/main/resources/configurations/minetickmod.yml
 +++ b/src/main/resources/configurations/minetickmod.yml
 @@ -28,3 +28,4 @@ minetickmod:

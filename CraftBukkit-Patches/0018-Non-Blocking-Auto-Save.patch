@@ -1,4 +1,4 @@
-From 591951f6e5759e0884dce8c8502522e3dc85d09c Mon Sep 17 00:00:00 2001
+From ab4297c240a9f7080aa876280a4ab35117db89cb Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 15:40:04 +0100
 Subject: [PATCH] Non Blocking Auto Save
@@ -90,7 +90,7 @@ index 7da82ec..cd751c2 100644
          Thread thread = new Thread(this, "File IO Thread");
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 2ee8a3f..13cd245 100644
+index 106a129..392890b 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -10,6 +10,7 @@ import com.mojang.authlib.GameProfile;
@@ -101,8 +101,8 @@ index 2ee8a3f..13cd245 100644
  import io.netty.buffer.ByteBuf;
  import io.netty.buffer.ByteBufOutputStream;
  import io.netty.buffer.Unpooled;
-@@ -51,6 +52,13 @@ import org.bukkit.event.server.RemoteServerCommandEvent;
- import org.bukkit.event.world.WorldSaveEvent;
+@@ -47,6 +48,13 @@ import joptsimple.OptionSet;
+ import org.bukkit.craftbukkit.Main;
  // CraftBukkit end
  
 +// MinetickMod start
@@ -115,7 +115,7 @@ index 2ee8a3f..13cd245 100644
  public abstract class MinecraftServer implements Runnable, ICommandListener, IAsyncTaskHandler, IMojangStatistics {
  
      public static final Logger LOGGER = LogManager.getLogger();
-@@ -122,6 +130,40 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -118,6 +126,40 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
      // MinetickMod start
      protected boolean snooperEnabled;
@@ -156,7 +156,7 @@ index 2ee8a3f..13cd245 100644
      // MinetickMod end
  
      public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
-@@ -651,10 +693,16 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -647,10 +689,16 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          if (autosavePeriod > 0 && this.ticks % autosavePeriod == 0) { // CraftBukkit
              this.methodProfiler.a("save");
              this.v.savePlayers();

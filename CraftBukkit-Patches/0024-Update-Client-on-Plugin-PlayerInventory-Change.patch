@@ -1,11 +1,11 @@
-From 4f46a97fa50022c90cf041bc9bbf2f96220c5001 Mon Sep 17 00:00:00 2001
+From 652e2f2fd7fd82ce635e3321ee0b8c704025a221 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sun, 22 Mar 2015 05:59:22 +0100
 Subject: [PATCH] Update Client on Plugin PlayerInventory Change
 
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
-index 98213c7..ae6ecdb 100644
+index dba8d5b..2e99f98 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
 @@ -11,6 +11,13 @@ import org.bukkit.entity.HumanEntity;
@@ -22,7 +22,7 @@ index 98213c7..ae6ecdb 100644
  public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.inventory.PlayerInventory, EntityEquipment {
      public CraftInventoryPlayer(net.minecraft.server.PlayerInventory inventory) {
          super(inventory);
-@@ -212,4 +219,40 @@ public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.i
+@@ -213,4 +220,40 @@ public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.i
      public void setBootsDropChance(float chance) {
          throw new UnsupportedOperationException();
      }

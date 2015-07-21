@@ -1,4 +1,4 @@
-From da92bbe62a83db36bfe76d9eee08aaa8f9d8ee31 Mon Sep 17 00:00:00 2001
+From fa94f62e1c98d9b8bf4e6e44c1ef1465a858c872 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Wed, 8 Jul 2015 04:26:23 +0200
 Subject: [PATCH] BungeeCord Support
@@ -126,7 +126,7 @@ index a1c5869..6cc9b91 100644
          this.d = EnumProtocol.a(packetdataserializer.e());
      }
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 3d995d2..a9f80c8 100644
+index cd95cb4..2ac452e 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -403,7 +403,7 @@ public abstract class PlayerList {
@@ -139,10 +139,10 @@ index 3d995d2..a9f80c8 100644
  
          if (getProfileBans().isBanned(gameprofile) && !getProfileBans().get(gameprofile).hasExpired()) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 8849087..631581d 100644
+index f5722c6..d629f99 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -555,7 +555,13 @@ public final class CraftServer implements Server {
+@@ -553,7 +553,13 @@ public final class CraftServer implements Server {
  
      @Override
      public long getConnectionThrottle() {
@@ -158,10 +158,10 @@ index 8849087..631581d 100644
  
      @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 813adbb..a8951f3 100644
+index 40f52f1..c4c3ab8 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -124,6 +124,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -119,6 +119,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
      }
  

@@ -1,11 +1,11 @@
-From 50f2151c1f2bc81295e48c96f945d5c48fcc08ff Mon Sep 17 00:00:00 2001
+From 3630a10fb90da7ea164d98e7b942d3d2dcabbfe0 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 09:00:14 +0100
 Subject: [PATCH] Queue Entities for Dimension Change
 
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index d004df3..510ede2 100644
+index 3fb3502..c9e7e88 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -114,6 +114,14 @@ public abstract class Entity implements ICommandListener {
@@ -59,7 +59,7 @@ index d004df3..510ede2 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 9b2e06a..4e89c93 100644
+index e707dd7..906f002 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -493,6 +493,12 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -76,10 +76,10 @@ index 9b2e06a..4e89c93 100644
              this.b((Statistic) AchievementList.D);
              this.world.kill(this);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 7b2bedb..514103e 100644
+index c7e8914..a57b922 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -744,6 +744,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -740,6 +740,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              // this.i[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
          }
  
@@ -94,7 +94,7 @@ index 7b2bedb..514103e 100644
          this.aq().c();
          this.methodProfiler.c("players");
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 6e77101..5da393d 100644
+index 4e78a56..867437f 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -32,6 +32,10 @@ import org.bukkit.event.weather.WeatherChangeEvent;

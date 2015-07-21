@@ -1,4 +1,4 @@
-From 59c79b7d00f0c3f0d916b86bd93e9c2830fc8b0a Mon Sep 17 00:00:00 2001
+From 93e2910e12b1033cef20f69ee28cd5c645f02fbc Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Tue, 7 Jul 2015 00:05:43 +0200
 Subject: [PATCH] MinetickMod Config and Profiler
@@ -922,7 +922,7 @@ index 0000000..5e48f78
 +}
 +
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index 6945d7d..174359c 100644
+index b39171b..c431dd1 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
 @@ -178,6 +178,8 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
@@ -935,10 +935,10 @@ index 6945d7d..174359c 100644
                  DedicatedServer.LOGGER.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
                  DedicatedServer.LOGGER.warn("The server will make no attempt to authenticate usernames. Beware.");
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 38f7469..114888a 100644
+index 392890b..e0e1d5d 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -55,6 +55,8 @@ import org.bukkit.event.world.WorldSaveEvent;
+@@ -51,6 +51,8 @@ import org.bukkit.craftbukkit.Main;
  // MinetickMod start
  import de.minetick.AutoSaveJob;
  import de.minetick.AutoSaveJob.JobDetail;
@@ -947,7 +947,7 @@ index 38f7469..114888a 100644
  
  import java.util.LinkedList;
  // MinetickMod end
-@@ -129,6 +131,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -125,6 +127,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      // CraftBukkit end
  
      // MinetickMod start
@@ -955,7 +955,7 @@ index 38f7469..114888a 100644
      protected boolean snooperEnabled;
      private LinkedList<AutoSaveJob> autoSaveWorlds = new LinkedList<AutoSaveJob>();
      private int autoSaveDelay = 0;
-@@ -164,11 +167,18 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -160,11 +163,18 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
              this.autoSaveOrdered = false;
          }
      }
@@ -974,7 +974,7 @@ index 38f7469..114888a 100644
          // this.universe = file; // CraftBukkit
          this.q = new ServerConnection(this);
          this.Z = new UserCache(this, file1);
-@@ -529,6 +539,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -525,6 +535,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
                  this.n.e();
              }
  
@@ -982,7 +982,7 @@ index 38f7469..114888a 100644
          }
      }
  
-@@ -667,6 +678,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -663,6 +674,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      protected void A() throws ExceptionWorldConflict { // CraftBukkit - added throws
          long i = System.nanoTime();
  
@@ -995,7 +995,7 @@ index 38f7469..114888a 100644
          ++this.ticks;
          if (this.T) {
              this.T = false;
-@@ -701,10 +718,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -697,10 +714,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          if(this.autoSaveOrdered) {
              this.autoSaveNextWorld();
          }
@@ -1009,7 +1009,7 @@ index 38f7469..114888a 100644
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
          if (this.snooperEnabled && !this.n.d() && this.ticks > 100) { // MinetickMod
-@@ -717,6 +736,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -713,6 +732,12 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
          this.methodProfiler.b();
          this.methodProfiler.b();
@@ -1022,7 +1022,7 @@ index 38f7469..114888a 100644
      }
  
      public void B() {
-@@ -797,6 +822,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+@@ -793,6 +818,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
          }
  
          // MinetickMod start
@@ -1032,7 +1032,7 @@ index 38f7469..114888a 100644
              WorldServer worldserver = this.worlds.get(i);
              worldserver.processDimensionChangeQueue();
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 40df44d..056799e 100644
+index 22a170a..8260db7 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -169,6 +169,7 @@ public abstract class World implements IBlockAccess {
@@ -1044,7 +1044,7 @@ index 40df44d..056799e 100644
      public void queueEntityForDimensionChange(Entity entity) {
          this.dimensionChangeQueue.add(entity);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index d4b61c6..b1521ad 100644
+index 72dfe7f..e3403ec 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -53,6 +53,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {

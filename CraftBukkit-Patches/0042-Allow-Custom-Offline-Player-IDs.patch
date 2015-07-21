@@ -1,4 +1,4 @@
-From 37cc0ba0efe3a3849c4e6b9585739bf9577208f5 Mon Sep 17 00:00:00 2001
+From 3188a9eb66452face36d98c11aca5761981e54f5 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Fri, 17 Apr 2015 03:40:55 +0200
 Subject: [PATCH] Allow Custom Offline Player IDs
@@ -139,7 +139,7 @@ index e2d3ac4..450407e 100644
                          throw new CommandException("commands.whitelist.add.failed", new Object[] { astring[1]});
                      }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index fe26522..616ca9f 100644
+index cbb03bb..e02926b 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -22,6 +22,8 @@ import org.bukkit.event.player.PlayerVelocityEvent;
@@ -215,7 +215,7 @@ index 00ddd1a..6e7050a 100644
          return new GameProfile(uuid, gameprofile.getName());
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index cb5d345..e756d8a 100644
+index 3333946..06d3206 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -125,6 +125,8 @@ import jline.console.ConsoleReader;
@@ -227,7 +227,7 @@ index cb5d345..e756d8a 100644
  import java.util.HashMap;
  // MinetickMod end
  
-@@ -1262,6 +1264,11 @@ public final class CraftServer implements Server {
+@@ -1260,6 +1262,11 @@ public final class CraftServer implements Server {
  
          OfflinePlayer result = getPlayerExact(name);
          if (result == null) {
