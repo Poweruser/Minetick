@@ -1,11 +1,11 @@
-From b83d3f8fb50a164d6c5c1e344ca80bfd89481a7f Mon Sep 17 00:00:00 2001
+From 66320828e7b95c553b4c4da8fe5ee611c49189f6 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
 Date: Sat, 21 Mar 2015 05:33:19 +0100
 Subject: [PATCH] POM Changes
 
 
 diff --git a/pom.xml b/pom.xml
-index 6f1dc61..3409861 100644
+index a2bdfbc..b2e96ba 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -4,18 +4,19 @@
@@ -25,7 +25,7 @@ index 6f1dc61..3409861 100644
 -    <artifactId>bukkit</artifactId>
 +    <groupId>de.minetick</groupId>
 +    <artifactId>minetick-api</artifactId>
-     <version>1.8.7-R0.1-SNAPSHOT</version>
+     <version>1.8.8-R0.1-SNAPSHOT</version>
      <packaging>jar</packaging>
  
 -    <name>Bukkit</name>
