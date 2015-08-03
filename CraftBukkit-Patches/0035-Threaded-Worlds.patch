@@ -1,6 +1,6 @@
-From 065a4ee327085686f40673c9c15640c78bbc12de Mon Sep 17 00:00:00 2001
+From aeb811011e62a9c16302ac35ed0534bc044c6b23 Mon Sep 17 00:00:00 2001
 From: Poweruser <poweruser.rs@hotmail.com>
-Date: Wed, 8 Jul 2015 05:18:25 +0200
+Date: Mon, 3 Aug 2015 06:56:55 +0200
 Subject: [PATCH] Threaded Worlds
 
 
@@ -80,7 +80,7 @@ index 782e6be..36c046e 100644
 +    }
  }
 diff --git a/src/main/java/de/minetick/MinetickModConfig.java b/src/main/java/de/minetick/MinetickModConfig.java
-index 2f0713f..41b3bfd 100644
+index 2f0713f..bce78ca 100644
 --- a/src/main/java/de/minetick/MinetickModConfig.java
 +++ b/src/main/java/de/minetick/MinetickModConfig.java
 @@ -40,6 +40,7 @@ public class MinetickModConfig {
@@ -105,7 +105,7 @@ index 2f0713f..41b3bfd 100644
      }
 +
 +    private boolean getThreadedWorldsEnabled() {
-+        return configuration.getBoolean("minetickmod.threadedWorlds");
++        return configuration.getBoolean("minetickmod.enableWorldThreading");
 +    }
 +
 +    public boolean isThreadedWorldsEnabled() {
@@ -528,7 +528,7 @@ index 0000000..74ad768
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 7b09765..f1a5ffa 100644
+index b12885e..e8bfc7d 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -31,6 +31,10 @@ import org.bukkit.event.entity.EntityPortalEvent;
@@ -566,7 +566,7 @@ index 7b09765..f1a5ffa 100644
  
      public int getId() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index e0e1d5d..f70777d 100644
+index 3af46e8..07a24dd 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -28,11 +28,14 @@ import java.util.Collections;
